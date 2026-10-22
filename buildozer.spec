@@ -4,21 +4,17 @@ package.name = amir6
 package.domain = org.amir6
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
-version = 1.0
-requirements = python3,kivy
+version = 1.1
+requirements = python3,kivy==2.3.0,openssl,certifi
 orientation = portrait
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
-
-# مشخص کردن دقیق نسخه‌ها برای جلوگیری از خطای گم شدن Aidl و Build-tools
-android.api = 31
+android.api = 33
 android.minapi = 21
-android.sdk = 31
-android.ndk = 25b
-android.accept_sdk_license = True
-
-android.archs = arm64-v8a
+android.ndk = 25c
+android.archs = arm64-v8a,armeabi-v7a
 android.allow_backup = True
 fullscreen = 0
+android.presplash_color = #0d0d0d
 
 [buildozer]
 log_level = 2
