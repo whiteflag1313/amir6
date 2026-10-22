@@ -24,8 +24,7 @@ jobs:
           git zip unzip openjdk-17-jdk \
           autoconf libtool pkg-config \
           zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 \
-          cmake libffi-dev libssl-dev \
-          libltdl-dev
+          cmake libffi-dev libssl-dev libltdl-dev
 
     - name: Cache Buildozer
       uses: actions/cache@v4
@@ -40,14 +39,33 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython==0.29.36
 
-    - name: Accept Android licenses
+    - name: Setup Android SDK & Accept Licenses
       run: |
-        mkdir -p $HOME/.android
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        yes | sdkmanager --licenses || true
+        # Install cmdline-tools properly
+        mkdir -p $HOME/android-sdk/cmdline-tools
+        cd $HOME/android-sdk
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
+        unzip -q cmdtools.zip
+        mv cmdline-tools latest
+        mkdir -p cmdline-tools
+        mv latest cmdline-tools/
+
+        export ANDROID_HOME=$HOME/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
+        # Accept licenses
+        yes | sdkmanager --licenses > /dev/null || true
+
+        # Install required packages
+        sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+
+        # Make sure aidl is available
+        ls $ANDROID_HOME/build-tools/33.0.2/aidl
 
     - name: Build APK
       run: |
+        export ANDROID_HOME=$HOME/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/33.0.2
         buildozer -v android debug
 
     - name: Upload APK
