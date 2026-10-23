@@ -38,13 +38,7 @@ jobs:
         pip install --upgrade pip
         pip install buildozer "cython<3.0.0"
 
-    - name: Clean old Android SDK / Buildozer cache
-      run: |
-        rm -rf $HOME/android-sdk
-        rm -rf .buildozer/
-        rm -rf bin/
-
-    - name: Setup Android SDK
+    - name: Setup Android SDK & Tools
       run: |
         mkdir -p $HOME/android-sdk/cmdline-tools
         cd $HOME/android-sdk
@@ -54,11 +48,13 @@ jobs:
         mkdir -p cmdline-tools
         mv latest cmdline-tools/
 
+        ln -s $HOME/android-sdk/cmdline-tools/latest $HOME/android-sdk/tools
+
         export ANDROID_HOME=$HOME/android-sdk
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 
         yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses || true
-        sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+        sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
     - name: Build APK
       run: |
