@@ -15,7 +15,8 @@ android.archs = arm64-v8a
 android.allow_backup = True
 fullscreen = 0
 android.presplash_color = #0d0d0d
-p4a.branch = master
+android.sdk_path = /usr/local/lib/android/sdk
+android.build_tools_version = 33.0.2
 
 [buildozer]
 log_level = 2
