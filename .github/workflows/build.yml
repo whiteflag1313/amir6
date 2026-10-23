@@ -38,7 +38,7 @@ jobs:
         pip install --upgrade pip
         pip install buildozer "cython<3.0.0"
 
-    - name: Setup Android SDK & Tools
+    - name: Pre-install Android SDK and Accept Licenses
       run: |
         mkdir -p $HOME/android-sdk/cmdline-tools
         cd $HOME/android-sdk
@@ -48,20 +48,17 @@ jobs:
         mkdir -p cmdline-tools
         mv latest cmdline-tools/
 
-        # ساخت مسیر و لینک دقیق مورد نیاز بیلدوزر برای sdkmanager
-        mkdir -p $HOME/android-sdk/tools/bin
-        ln -s $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager $HOME/android-sdk/tools/bin/sdkmanager
-
         export ANDROID_HOME=$HOME/android-sdk
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 
+        # تایید اجباری و خودکار تمام لایسنس‌های اندروید
         yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses || true
+        
+        # نصب پکیج‌های پایه‌ورودی برای جلوگیری از خطای build-tools و aidl
         sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-    - name: Build APK
+    - name: Build APK with Buildozer
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/33.0.2
         buildozer -v android debug
 
     - name: List built files
