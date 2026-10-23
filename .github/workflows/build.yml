@@ -11,69 +11,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-              git \
-              zip \
-              unzip \
-              autoconf \
-              libtool \
-              pkg-config \
-              zlib1g-dev \
-              libncurses5-dev \
-              libncursesw5-dev \
-              libltdl-dev \
-              libffi-dev \
-              libssl-dev \
-              ant
-
-      - name: Install Python packages
-        run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade buildozer cython==0.29.36 virtualenv
 
       - name: Create output directory
         run: mkdir -p final_apks
 
       - name: Build ARM7 APK
-        run: |
-          cp buildozer-arm7.spec buildozer.spec
-          buildozer -v android debug
-          cp bin/*.apk final_apks/app-arm7.apk || true
+        uses: rtfd/buildozer-action@vlatest
+        with:
+          command: |
+            cp buildozer-arm7.spec buildozer.spec
+            buildozer -v android debug
+            cp bin/*.apk final_apks/app-arm7.apk || true
 
       - name: Build ARM8 APK
-        run: |
-          rm -rf bin/
-          cp buildozer-arm8.spec buildozer.spec
-          buildozer -v android debug
-          cp bin/*.apk final_apks/app-arm8.apk || true
+        uses: rtfd/buildozer-action@vlatest
+        with:
+          command: |
+            cp buildozer-arm8.spec buildozer.spec
+            buildozer -v android debug
+            cp bin/*.apk final_apks/app-arm8.apk || true
 
       - name: Build Universal APK
-        run: |
-          rm -rf bin/
-          cp buildozer-universal.spec buildozer.spec
-          buildozer -v android debug
-          cp bin/*.apk final_apks/app-universal.apk || true
-
-      - name: List built files
-        run: |
-          ls -la final_apks/
+        uses: rtfd/buildozer-action@vlatest
+        with:
+          command: |
+            cp buildozer-universal.spec buildozer.spec
+            buildozer -v android debug
+            cp bin/*.apk final_apks/app-universal.apk || true
 
       - name: Upload All APKs
         uses: actions/upload-artifact@v4
