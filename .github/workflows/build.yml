@@ -47,32 +47,24 @@ jobs:
           unzip \
           wget
 
-    - name: Clean and Setup Android SDK
+    - name: Clean and Setup Android SDK & NDK 25
       run: |
-        # پاکسازی کامل پوشه‌های قبلی برای جلوگیری از خطای Directory not empty
         sudo rm -rf /usr/local/lib/android/sdk
         sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools
 
-        # دانلود ابزار
         cd /tmp
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
         unzip -q tools.zip
-        
-        # انتقال تمیز بدون خطای پوشه پر
         sudo mv cmdline-tools /usr/local/lib/android/sdk/cmdline-tools/latest
         rm tools.zip
 
-        # لایسنس و نصب پکیج‌ها
         yes | sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/usr/local/lib/android/sdk --licenses
         sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/usr/local/lib/android/sdk "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-        # لینک کردن برای بیلدوزر
         sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
         sudo ln -s /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager
 
         sudo chmod -R 777 /usr/local/lib/android/sdk
-        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
 
     - name: Install Python Dependencies & Buildozer
       run: |
@@ -83,6 +75,11 @@ jobs:
 
     - name: Build ARM7 APK
       run: |
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+        export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+        export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
+        export ANDROID_NDK=/usr/local/lib/android/sdk/ndk/25.2.9519653
+        
         cp buildozer-arm7.spec buildozer.spec
         echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
         echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
@@ -91,6 +88,11 @@ jobs:
 
     - name: Build ARM8 APK
       run: |
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+        export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+        export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
+        export ANDROID_NDK=/usr/local/lib/android/sdk/ndk/25.2.9519653
+
         cp buildozer-arm8.spec buildozer.spec
         echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
         echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
@@ -99,6 +101,11 @@ jobs:
 
     - name: Build Universal APK
       run: |
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+        export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+        export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
+        export ANDROID_NDK=/usr/local/lib/android/sdk/ndk/25.2.9519653
+
         cp buildozer-universal.spec buildozer.spec
         echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
         echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
