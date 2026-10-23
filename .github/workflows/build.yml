@@ -1,4 +1,5 @@
-name: Build APK
+name: Build 3 APKs (ARM8, ARM7, Universal)
+
 on:
   push:
     branches: [ main ]
@@ -10,16 +11,43 @@ jobs:
     container:
       image: kivy/buildozer:latest
 
-    steps:
-    - uses: actions/checkout@v4
+    # ماتریس برای ساخت ۳ نسخه به صورت همزمان
+    strategy:
+      matrix:
+        arch: [arm8, arm7, universal]
 
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # رفع خطای مالکیت گیت (Safe Directory)
+    - name: Fix Git Safe Directory
+      run: git config --global --add safe.directory /github/workspace
+
+    # کش کردن فایل‌های بیلد شده برای سرعت بالا در بیلدهای بعدی
+    - name: Cache Buildozer global directory
+      uses: actions/cache@v4
+      with:
+        path: ~/.buildozer
+        key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          buildozer-global-
+
+    # کپی کردن فایل spec مخصوص هر معماری
+    - name: Setup buildozer.spec for ${{ matrix.arch }}
+      run: |
+        cp buildozer-${{ matrix.arch }}.spec buildozer.spec
+
+    # اجرای بیلد با تایم‌اوت بالاتر
     - name: Build APK
+      timeout-minutes: 120
       run: |
         buildozer -v android debug
 
-    - name: Upload APK
+    # آپلود فایل APK با اسم متفاوت برای هر معماری
+    - name: Upload APK (${{ matrix.arch }})
       uses: actions/upload-artifact@v4
       with:
-        name: amir6-apk
+        name: AMIR6-${{ matrix.arch }}-APK
         path: bin/*.apk
         if-no-files-found: error
