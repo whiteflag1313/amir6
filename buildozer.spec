@@ -10,11 +10,15 @@ orientation = portrait
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 android.api = 33
 android.minapi = 21
-android.ndk = 28c
+android.ndk = 25c
 android.archs = arm64-v8a
 android.allow_backup = True
 fullscreen = 0
 android.presplash_color = #0d0d0d
+
+# مسیرهای صریح SDK و NDK پایدار
+android.sdk_path = /home/runner/android-sdk
+android.ndk_path = /home/runner/android-sdk/ndk/25.2.9519653
 
 [buildozer]
 log_level = 2
