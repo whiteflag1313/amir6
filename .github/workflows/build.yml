@@ -2,9 +2,9 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
@@ -42,10 +42,11 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          yes | buildozer -v android debug
+          # اینجا نام فایل spec دلخواهتان را مشخص می‌کنید (مثلاً buildozer-universal.spec)
+          yes | buildozer -v -spec buildozer-universal android debug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: python-app-apk
+          name: app-release-apk
           path: bin/*.apk
