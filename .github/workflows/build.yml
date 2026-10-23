@@ -49,12 +49,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade buildozer cython==0.29.36 virtualenv
 
-      - name: Set up Android SDK Environment
-        run: |
-          mkdir -p /home/runner/android-sdk
-          echo "ANDROID_HOME=/home/runner/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=/home/runner/android-sdk" >> $GITHUB_ENV
-
       - name: Create output directory
         run: mkdir -p final_apks
 
@@ -66,14 +60,14 @@ jobs:
 
       - name: Build ARM8 APK
         run: |
-          rm -rf bin/
+          rm -rf bin/ .buildozer/
           cp buildozer-arm8.spec buildozer.spec
           buildozer -v android debug
           cp bin/*.apk final_apks/app-arm8.apk || true
 
       - name: Build Universal APK
         run: |
-          rm -rf bin/
+          rm -rf bin/ .buildozer/
           cp buildozer-universal.spec buildozer.spec
           buildozer -v android debug
           cp bin/*.apk final_apks/app-universal.apk || true
