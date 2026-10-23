@@ -54,25 +54,18 @@ jobs:
         yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses || true
         sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-        # ساخت لینک‌های کمکی برای اینکه بیلدووزر فوری ابزارها رو پیدا کنه
-        mkdir -p /home/runner/.buildozer/android/platform
-        ln -s $HOME/android-sdk /home/runner/.buildozer/android/platform/android-sdk
-
     - name: Build ARM7 APK
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
         cp buildozer-arm7.spec buildozer.spec
         buildozer -v android debug
 
     - name: Build ARM8 APK
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
         cp buildozer-arm8.spec buildozer.spec
         buildozer -v android debug
 
     - name: Build Universal APK
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
         cp buildozer-universal.spec buildozer.spec
         buildozer -v android debug
 
