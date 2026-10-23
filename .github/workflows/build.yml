@@ -38,38 +38,45 @@ jobs:
 
     - name: Setup Android SDK
       run: |
-        mkdir -p $HOME/android-sdk/cmdline-tools
+        SDK=$HOME/android-sdk
+        mkdir -p $SDK
+        
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-        unzip -q cmdtools.zip -d $HOME/android-sdk/cmdline-tools
-        mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+        unzip -q cmdtools.zip -d /tmp/cmdtools_extract
         
-        export ANDROID_SDK_ROOT=$HOME/android-sdk
-        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
+        echo "=== extracted contents ==="
+        ls /tmp/cmdtools_extract/
         
-        yes | sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses > /dev/null 2>&1 || true
-        sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
+        mkdir -p $SDK/cmdline-tools/latest
+        cp -r /tmp/cmdtools_extract/*/* $SDK/cmdline-tools/latest/ 2>/dev/null || \
+        cp -r /tmp/cmdtools_extract/* $SDK/cmdline-tools/latest/ 2>/dev/null || true
+        
+        echo "=== sdkmanager check ==="
+        ls $SDK/cmdline-tools/latest/bin/ || true
+        
+        export PATH=$PATH:$SDK/cmdline-tools/latest/bin
+        
+        yes | sdkmanager --sdk_root=$SDK --licenses > /dev/null 2>&1 || true
+        sdkmanager --sdk_root=$SDK \
           "platform-tools" \
           "platforms;android-33" \
           "build-tools;33.0.2" \
           "ndk;25.2.9519653"
         
-        # symlink برای buildozer که مسیر قدیمی رو میگرده
-        mkdir -p $HOME/android-sdk/tools/bin
-        ln -sf $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager \
-               $HOME/android-sdk/tools/bin/sdkmanager
-        ln -sf $HOME/android-sdk/cmdline-tools/latest/bin/avdmanager \
-               $HOME/android-sdk/tools/bin/avdmanager
+        mkdir -p $SDK/tools/bin
+        ln -sf $SDK/cmdline-tools/latest/bin/sdkmanager $SDK/tools/bin/sdkmanager
+        ln -sf $SDK/cmdline-tools/latest/bin/avdmanager $SDK/tools/bin/avdmanager
         
-        echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
+        echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$SDK/ndk/25.2.9519653" >> $GITHUB_ENV
 
     - name: Configure buildozer
       run: |
+        SDK=$HOME/android-sdk
         mkdir -p $HOME/.buildozer/android/platform
-        ln -sf $HOME/android-sdk $HOME/.buildozer/android/platform/android-sdk
-        ln -sf $HOME/android-sdk/ndk/25.2.9519653 \
-               $HOME/.buildozer/android/platform/android-ndk-r25b
+        ln -sf $SDK $HOME/.buildozer/android/platform/android-sdk
+        ln -sf $SDK/ndk/25.2.9519653 $HOME/.buildozer/android/platform/android-ndk-r25b
         mkdir -p bin
 
     - name: Build ARM64 APK
