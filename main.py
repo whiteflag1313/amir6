@@ -17,6 +17,7 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.utils import get_color_from_hex
 from kivy.uix.popup import Popup
+from kivy.core.clipboard import Clipboard
 
 Window.clearcolor = get_color_from_hex("#0d0d0d")
 
@@ -33,7 +34,7 @@ CF_SUBNETS = [
     "2606:4700:300::/48","2606:4700:4700::/48",
 ]
 
-def get_save_path():
+def get_default_save_path():
     paths = [
         "/storage/emulated/0/Download/clean_ipv6.txt",
         "/sdcard/Download/clean_ipv6.txt",
@@ -42,11 +43,10 @@ def get_save_path():
     for p in paths:
         try:
             os.makedirs(os.path.dirname(p), exist_ok=True)
-            open(p, "a").close()
             return p
         except:
             pass
-    return paths[-1]
+    return "clean_ipv6.txt"
 
 def rand_ip():
     net = ipaddress.IPv6Network(random.choice(CF_SUBNETS), strict=False)
@@ -88,43 +88,36 @@ def test_ip(ip, pcount=3):
     return round(sum(pings) / len(pings), 1)
 
 
-class IPRow(BoxLayout):
-    def __init__(self, rank, ip, ms, **kwargs):
+class IPRow(Button):
+    def __init__(self, rank, ip, ms, app_instance, **kwargs):
         super().__init__(**kwargs)
-        self.orientation = "horizontal"
+        self.ip = ip
+        self.app_instance = app_instance
         self.size_hint_y = None
-        self.height = 40
-        self.padding = [8, 2]
-        self.spacing = 4
-
+        self.height = 45
+        self.background_normal = ''
+        self.background_color = get_color_from_hex("#141420")
+        
         if ms < 450:
-            color = get_color_from_hex("#00ff88")
+            color_hex = "#00ff88"
         elif ms < 650:
-            color = get_color_from_hex("#ffcc00")
+            color_hex = "#ffcc00"
         else:
-            color = get_color_from_hex("#ff4444")
+            color_hex = "#ff4444"
 
-        self.add_widget(Label(
-            text=f"{rank}.",
-            size_hint_x=0.08,
-            color=get_color_from_hex("#888888"),
-            font_size="12sp"
-        ))
-        self.add_widget(Label(
-            text=ip,
-            size_hint_x=0.72,
-            color=get_color_from_hex("#00ccff"),
-            font_size="11sp",
-            halign="left",
-            text_size=(None, None)
-        ))
-        self.add_widget(Label(
-            text=f"{ms:.0f}ms",
-            size_hint_x=0.20,
-            color=color,
-            font_size="12sp",
-            bold=True
-        ))
+        self.text = f"  {rank}.   {ip}    [{ms:.0f}ms]"
+        self.font_size = "11sp"
+        self.halign = "left"
+        self.valign = "middle"
+        self.color = get_color_from_hex(color_hex)
+        self.bind(size=self._update_text_size)
+
+    def _update_text_size(self, *args):
+        self.text_size = self.size
+
+    def on_press(self):
+        Clipboard.copy(self.ip)
+        self.app_instance.show_toast(f"کپی شد: {self.ip}")
 
 
 class Amir6App(App):
@@ -140,7 +133,6 @@ class Amir6App(App):
 
         root = BoxLayout(orientation="vertical", padding=10, spacing=6)
 
-        # ─── Header ───
         header = Label(
             text="[b][color=00ccff]AMIR6[/color]  CF IPv6 Scanner[/b]",
             markup=True,
@@ -150,7 +142,6 @@ class Amir6App(App):
         )
         root.add_widget(header)
 
-        # ─── Settings ───
         settings = GridLayout(cols=4, size_hint_y=None, height=44, spacing=6)
 
         settings.add_widget(Label(text="IP Count:", color=get_color_from_hex("#aaaaaa"), font_size="12sp"))
@@ -176,67 +167,63 @@ class Amir6App(App):
         settings.add_widget(self.spin_threads)
         root.add_widget(settings)
 
-        # ─── Buttons ───
         btn_row = BoxLayout(size_hint_y=None, height=48, spacing=8)
 
         self.btn_start = Button(
-            text="▶  START SCAN",
+            text="▶ START",
             background_color=get_color_from_hex("#005500"),
             color=get_color_from_hex("#00ff88"),
             bold=True,
-            font_size="14sp"
+            font_size="13sp"
         )
         self.btn_start.bind(on_press=self.start_scan)
         btn_row.add_widget(self.btn_start)
 
         self.btn_stop = Button(
-            text="■  STOP",
+            text="■ STOP",
             background_color=get_color_from_hex("#550000"),
             color=get_color_from_hex("#ff4444"),
             bold=True,
-            font_size="14sp",
+            font_size="13sp",
             disabled=True
         )
         self.btn_stop.bind(on_press=self.stop_scan)
         btn_row.add_widget(self.btn_stop)
 
         self.btn_save = Button(
-            text="💾  SAVE",
+            text="💾 SAVE",
             background_color=get_color_from_hex("#003355"),
             color=get_color_from_hex("#00aaff"),
             bold=True,
-            font_size="14sp"
+            font_size="13sp"
         )
-        self.btn_save.bind(on_press=self.save_results)
+        self.btn_save.bind(on_press=self.open_save_dialog)
         btn_row.add_widget(self.btn_save)
 
         self.btn_clear = Button(
-            text="🗑  CLEAR",
+            text="🗑 CLEAR",
             background_color=get_color_from_hex("#222222"),
             color=get_color_from_hex("#888888"),
             bold=True,
-            font_size="14sp"
+            font_size="13sp"
         )
         self.btn_clear.bind(on_press=self.clear_results)
         btn_row.add_widget(self.btn_clear)
 
         root.add_widget(btn_row)
 
-        # ─── Progress ───
         self.progress = ProgressBar(max=100, value=0, size_hint_y=None, height=10)
         root.add_widget(self.progress)
 
-        # ─── Status ───
         self.lbl_status = Label(
-            text="آماده — START بزن",
+            text="آماده — START بزن (روی هر IP بزنید کپی می‌شود)",
             color=get_color_from_hex("#888888"),
             size_hint_y=None,
             height=28,
-            font_size="12sp"
+            font_size="11sp"
         )
         root.add_widget(self.lbl_status)
 
-        # ─── Legend ───
         legend = BoxLayout(size_hint_y=None, height=24, spacing=12)
         legend.add_widget(Label(
             text="[color=00ff88]● <450ms[/color]  [color=ffcc00]● <650ms[/color]  [color=ff4444]● >650ms[/color]",
@@ -244,7 +231,6 @@ class Amir6App(App):
         ))
         root.add_widget(legend)
 
-        # ─── Divider ───
         root.add_widget(Label(
             text="─" * 60,
             size_hint_y=None, height=16,
@@ -252,19 +238,17 @@ class Amir6App(App):
             font_size="10sp"
         ))
 
-        # ─── Results ScrollView ───
         scroll = ScrollView()
         self.results_layout = GridLayout(
             cols=1,
             size_hint_y=None,
-            spacing=2,
+            spacing=3,
             padding=[0, 4]
         )
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
         scroll.add_widget(self.results_layout)
         root.add_widget(scroll)
 
-        # ─── Footer ───
         self.lbl_best = Label(
             text="بهترین IP: —",
             color=get_color_from_hex("#00ff88"),
@@ -323,89 +307,4 @@ class Amir6App(App):
                         self.results.sort()
                         rank = self.results.index((ms, ip)) + 1
                         self.pending_rows.append((rank, ip, ms))
-                q.task_done()
-
-        ts = [threading.Thread(target=worker, daemon=True) for _ in range(threads)]
-        for t in ts:
-            t.start()
-        for t in ts:
-            t.join()
-
-        if self.running:
-            Clock.schedule_once(self.scan_done, 0)
-
-    def flush_rows(self, dt):
-        with self.lock:
-            rows = self.pending_rows[:]
-            self.pending_rows = []
-            pct = (self.tested / self.total * 100) if self.total else 0
-            found = self.found
-            tested = self.tested
-
-        for rank, ip, ms in rows:
-            self.results_layout.clear_widgets()
-            for i, (m, p) in enumerate(self.results[:50], 1):
-                self.results_layout.add_widget(IPRow(i, p, m))
-
-        self.progress.value = min(pct, 100)
-        self.lbl_status.text = f"اسکن...  {tested}/{self.total}  |  پیدا شد: {found}"
-
-        if self.results:
-            best_ms, best_ip = self.results[0]
-            self.lbl_best.text = f"بهترین: [color=00ccff]{best_ip}[/color]  [color=00ff88]{best_ms:.0f}ms[/color]"
-
-    def scan_done(self, *args):
-        self.running = False
-        self.btn_start.disabled = False
-        self.btn_stop.disabled = True
-        self.lbl_status.text = f"تموم شد!  {self.found} IP تمیز پیدا شد"
-        self.lbl_status.color = get_color_from_hex("#00ff88")
-        self.progress.value = 100
-
-    def save_results(self, *args):
-        if not self.results:
-            self.show_popup("خطا", "هیچ IP ای نیست!")
-            return
-        path = get_save_path()
-        existing = set()
-        if os.path.exists(path):
-            existing = {l.strip() for l in open(path) if l.strip()}
-        all_ips = existing | {ip for _, ip in self.results}
-        with open(path, "w") as f:
-            for ip in all_ips:
-                f.write(ip + "\n")
-        self.show_popup("ذخیره شد ✓", f"{len(all_ips)} IP\n\n{path}")
-
-    def clear_results(self, *args):
-        self.results = []
-        self.results_layout.clear_widgets()
-        self.lbl_best.text = "بهترین IP: —"
-        self.lbl_status.text = "پاک شد"
-        self.progress.value = 0
-
-    def show_popup(self, title, msg):
-        content = BoxLayout(orientation="vertical", padding=12, spacing=8)
-        content.add_widget(Label(
-            text=msg,
-            color=get_color_from_hex("#ffffff"),
-            font_size="13sp"
-        ))
-        btn = Button(
-            text="OK",
-            size_hint_y=None,
-            height=44,
-            background_color=get_color_from_hex("#005500")
-        )
-        content.add_widget(btn)
-        popup = Popup(
-            title=title,
-            content=content,
-            size_hint=(0.85, 0.4),
-            background_color=get_color_from_hex("#1a1a2e")
-        )
-        btn.bind(on_press=popup.dismiss)
-        popup.open()
-
-
-if __name__ == "__main__":
-    Amir6App().run()
+                q.
