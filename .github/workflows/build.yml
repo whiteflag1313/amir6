@@ -47,28 +47,30 @@ jobs:
           unzip \
           wget
 
-    - name: Pre-setup Buildozer Android Environment
+    - name: Clean and Setup Android SDK
       run: |
-        # ساختن ساختار پوشه‌ای که بیلدوزر به زور آنجا را نگاه می‌کند
-        mkdir -p $HOME/.buildozer/android/platform
-        mkdir -p /usr/local/lib/android/sdk
-        
-        # دانلود و آماده‌سازی ابزار خط فرمان اندروید
+        # پاکسازی کامل پوشه‌های قبلی برای جلوگیری از خطای Directory not empty
+        sudo rm -rf /usr/local/lib/android/sdk
+        sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools
+
+        # دانلود ابزار
         cd /tmp
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
         unzip -q tools.zip
-        mkdir -p /usr/local/lib/android/sdk/cmdline-tools/latest
-        mv cmdline-tools/* /usr/local/lib/android/sdk/cmdline-tools/latest/
+        
+        # انتقال تمیز بدون خطای پوشه پر
+        sudo mv cmdline-tools /usr/local/lib/android/sdk/cmdline-tools/latest
         rm tools.zip
 
-        # تنظیم مجوزها و لایسنس‌ها
-        yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/usr/local/lib/android/sdk --licenses
-        /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/usr/local/lib/android/sdk "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+        # لایسنس و نصب پکیج‌ها
+        yes | sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/usr/local/lib/android/sdk --licenses
+        sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/usr/local/lib/android/sdk "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-        # لینک کردن مسیرها برای جلوگیری از خطای گم شدن sdkmanager
+        # لینک کردن برای بیلدوزر
         sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
         sudo ln -s /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager
 
+        sudo chmod -R 777 /usr/local/lib/android/sdk
         echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
         echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
 
