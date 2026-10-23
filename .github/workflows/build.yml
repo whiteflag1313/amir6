@@ -45,9 +45,10 @@ jobs:
           pkg-config \
           libssl-dev \
           unzip \
-          wget
+          wget \
+          ant
 
-    - name: Clean and Setup Android SDK & NDK 25
+    - name: Setup Android SDK & NDK 25
       run: |
         sudo rm -rf /usr/local/lib/android/sdk
         sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools
@@ -63,15 +64,15 @@ jobs:
 
         sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
         sudo ln -s /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager
-
         sudo chmod -R 777 /usr/local/lib/android/sdk
 
     - name: Install Python Dependencies & Buildozer
       run: |
         python -m pip install --upgrade pip
+        pip install --upgrade setuptools wheel
         pip install --upgrade cython==0.29.36
-        pip install --upgrade buildozer
         pip install --upgrade pillow
+        pip install --upgrade buildozer
 
     - name: Build ARM7 APK
       run: |
@@ -79,34 +80,8 @@ jobs:
         export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
         export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
         export ANDROID_NDK=/usr/local/lib/android/sdk/ndk/25.2.9519653
-        
+
         cp buildozer-arm7.spec buildozer.spec
-        echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
-        echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
-        echo "android.skip_update = True" >> buildozer.spec
-        buildozer -v android debug
-
-    - name: Build ARM8 APK
-      run: |
-        export ANDROID_HOME=/usr/local/lib/android/sdk
-        export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-        export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
-        export ANDROID_NDK=/usr/local/lib/android/sdk/ndk/25.2.9519653
-
-        cp buildozer-arm8.spec buildozer.spec
-        echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
-        echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
-        echo "android.skip_update = True" >> buildozer.spec
-        buildozer -v android debug
-
-    - name: Build Universal APK
-      run: |
-        export ANDROID_HOME=/usr/local/lib/android/sdk
-        export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-        export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
-        export ANDROID_NDK=/usr/local/lib/android/sdk/ndk/25.2.9519653
-
-        cp buildozer-universal.spec buildozer.spec
         echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
         echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
         echo "android.skip_update = True" >> buildozer.spec
@@ -115,5 +90,5 @@ jobs:
     - name: Upload APK Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: all-amirah-apks
+        name: amir7-apk
         path: bin/*.apk
