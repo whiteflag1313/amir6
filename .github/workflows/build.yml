@@ -27,22 +27,24 @@ jobs:
     - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev libltdl-dev aidl
+        sudo apt-get install -y build-essential git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev libltdl-dev
         sudo wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2_amd64.deb
         sudo dpkg -i libtinfo5_6.3-2_amd64.deb
 
-    - name: Install Android Tools
+    - name: Install Android SDK Packages
       run: |
-        sdkmanager "platform-tools" "build-tools;33.0.2" "platforms;android-33" "ndk;25.2.9519653"
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;33.0.2" "platforms;android-33" "ndk;25.2.9519653"
 
-    - name: Install Buildozer & Force System Paths
+    - name: Install Buildozer & Setup Paths
       run: |
         python -m pip install --upgrade pip
         pip install buildozer "cython==0.29.36"
-        # این دو خط مسیر اندروید و NDK سرور را مستقیما به بیلدوزر قالب می‌کند
+        # ساخت مسیر دقیق مورد نظر بیلدوزر و لینک دادن به اندروید نصب شده
         mkdir -p ~/.buildozer/android/platform
-        ln -s /usr/local/lib/android/sdk ~/.buildozer/android/platform/android-sdk
-        ln -s /usr/local/lib/android/sdk/ndk/25.2.9519653 ~/.buildozer/android/platform/android-ndk-r25c
+        ln -sfn /usr/local/lib/android/sdk ~/.buildozer/android/platform/android-sdk
+        ln -sfn /usr/local/lib/android/sdk/ndk/25.2.9519653 ~/.buildozer/android/platform/android-ndk-r25c
 
     - name: Build APK
       timeout-minutes: 180
