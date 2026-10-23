@@ -13,6 +13,8 @@ android.minapi = 21
 android.ndk = 25c
 android.archs = armeabi-v7a
 android.allow_backup = True
+android.sdk_path = /usr/local/lib/android/sdk
+android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653
 fullscreen = 0
 android.presplash_color = #0d0d0d
 
