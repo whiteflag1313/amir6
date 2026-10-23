@@ -28,23 +28,42 @@ jobs:
           distribution: zulu
           java-version: '17'
 
-      - name: Set up Android SDK tools
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: ''
 
-      - name: Install Android SDK in Buildozer path
+      - name: Install Android SDK components
+        shell: bash
         run: |
-          export SDK_ROOT=/home/runner/android-sdk
+          set -euxo pipefail
+
+          SDK_ROOT=/home/runner/android-sdk
           mkdir -p "$SDK_ROOT"
 
-          yes | sdkmanager --sdk_root="$SDK_ROOT" --licenses
+          SDKMANAGER="$(command -v sdkmanager)"
+          test -n "$SDKMANAGER"
+          echo "Using sdkmanager: $SDKMANAGER"
 
-          sdkmanager --sdk_root="$SDK_ROOT" --install \
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses
+
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
             "platform-tools" \
             "platforms;android-33" \
             "build-tools;33.0.2" \
             "ndk;25.2.9519653"
+
+          mkdir -p "$SDK_ROOT/tools/bin"
+
+          printf '#!/usr/bin/env bash\nexec "%s" --sdk_root=/home/runner/android-sdk "$@"\n' \
+            "$SDKMANAGER" > "$SDK_ROOT/tools/bin/sdkmanager"
+
+          chmod +x "$SDK_ROOT/tools/bin/sdkmanager"
+
+          test -x "$SDK_ROOT/tools/bin/sdkmanager"
+          test -x "$SDK_ROOT/build-tools/33.0.2/aidl"
+          test -d "$SDK_ROOT/platforms/android-33"
+          test -d "$SDK_ROOT/ndk/25.2.9519653"
 
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
@@ -53,12 +72,7 @@ jobs:
           echo "ANDROIDAPI=33" >> "$GITHUB_ENV"
           echo "ANDROIDMINAPI=21" >> "$GITHUB_ENV"
 
-          test -x "$SDK_ROOT/build-tools/33.0.2/aidl"
-          test -d "$SDK_ROOT/platforms/android-33"
-          test -d "$SDK_ROOT/ndk/25.2.9519653"
-
-          echo "Android SDK installation verified."
-          ls -la "$SDK_ROOT/build-tools/33.0.2"
+          echo "Android SDK components verified."
 
       - name: Install system dependencies
         run: |
@@ -80,15 +94,19 @@ jobs:
             build-essential \
             cmake
 
-      - name: Install Python packages
+      - name: Install Python build dependencies
         run: |
           python -m pip install --upgrade pip
           pip install buildozer cython==0.29.36 virtualenv
 
-      - name: Verify Buildozer configuration
+      - name: Verify build configuration
+        shell: bash
         run: |
-          grep -E '^(android.sdk_path|android.ndk_path|android.api|android.minapi|android.ndk|android.archs|android.skip_update)' buildozer.spec
+          set -euxo pipefail
 
+          grep -E '^(android.sdk_path|android.ndk_path|android.api|android.minapi|android.ndk|android.archs|android.build_tools_version)' buildozer.spec
+
+          test -x /home/runner/android-sdk/tools/bin/sdkmanager
           test -x /home/runner/android-sdk/build-tools/33.0.2/aidl
           test -d /home/runner/android-sdk/platforms/android-33
           test -d /home/runner/android-sdk/ndk/25.2.9519653
