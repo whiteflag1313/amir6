@@ -49,6 +49,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade buildozer cython==0.29.36 virtualenv
 
+      - name: Set up Android SDK Environment
+        run: |
+          mkdir -p /home/runner/android-sdk
+          echo "ANDROID_HOME=/home/runner/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/home/runner/android-sdk" >> $GITHUB_ENV
+
       - name: Create output directory
         run: mkdir -p final_apks
 
