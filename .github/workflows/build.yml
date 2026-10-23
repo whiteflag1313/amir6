@@ -1,4 +1,4 @@
-name: Build 3 APKs
+name: Build Universal APK
 
 on:
   push:
@@ -8,9 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        arch: [arm8, arm7, universal]
 
     steps:
     - name: Checkout code
@@ -27,20 +24,17 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Fix Android SDK Path & Install Packages
-      run: |
-        # ۱. ساخت لینک نمادین برای رفع باگ پیدا نکردن sdkmanager
-        sudo mkdir -p /usr/local/lib/android/sdk
-        sudo ln -sfn /usr/local/lib/android/sdk/cmdline-tools/latest /usr/local/lib/android/sdk/tools
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
 
-        # ۲. قبول لایسنس‌ها و نصب پکیج‌های مورد نیاز اندروید
-        yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-        /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.2" "platforms;android-33" "ndk;25.2.9519653"
+    - name: Install Android Packages
+      run: |
+        sdkmanager "platform-tools" "build-tools;33.0.2" "platforms;android-33" "ndk;25.2.9519653"
 
     - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev libltdl-dev
+        sudo apt-get install -y build-essential git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev libltdl-dev aidl
         sudo wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2_amd64.deb
         sudo dpkg -i libtinfo5_6.3-2_amd64.deb
 
@@ -49,20 +43,20 @@ jobs:
         python -m pip install --upgrade pip
         pip install buildozer "cython==0.29.36"
 
-    - name: Setup spec file
-      run: |
-        cp buildozer-${{ matrix.arch }}.spec buildozer.spec
-
-    - name: Build APK
+    - name: Build Universal APK
       timeout-minutes: 180
       env:
+        ANDROID_HOME: /usr/local/lib/android/sdk
+        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
         CI: "true"
       run: |
+        cp buildozer-universal.spec buildozer.spec
         buildozer -v android debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: AMIR6-${{ matrix.arch }}-APK
+        name: AMIR6-Universal-APK
         path: bin/*.apk
         if-no-files-found: error
