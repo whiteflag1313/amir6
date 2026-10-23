@@ -51,8 +51,14 @@ jobs:
         export ANDROID_HOME=$HOME/android-sdk
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 
-        yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses > /dev/null || true
+        # Accept all licenses forcefully
+        yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
+
+        # Install required packages
         sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+
+        # Verify aidl exists
+        ls -la $ANDROID_HOME/build-tools/33.0.2/aidl
 
     - name: Build APK
       run: |
