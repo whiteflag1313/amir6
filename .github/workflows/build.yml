@@ -8,7 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         arch: [arm8, arm7, universal]
@@ -21,16 +20,18 @@ jobs:
       run: |
         cp buildozer-${{ matrix.arch }}.spec buildozer.spec
 
-    - name: Build with Buildozer
-      uses: ArtemSBulgakov/buildozer-action@v1
-      id: buildozer
-      with:
-        command: buildozer android debug
-        buildozer_version: stable
+    - name: Build APK with Docker
+      timeout-minutes: 120
+      run: |
+        docker run --rm \
+          --volume "${{ github.workspace }}":/home/user/hostcwd \
+          --workdir /home/user/hostcwd \
+          kivy/buildozer:latest \
+          sh -c "yes | buildozer -v android debug"
 
     - name: Upload APK (${{ matrix.arch }})
       uses: actions/upload-artifact@v4
       with:
         name: AMIR6-${{ matrix.arch }}-APK
-        path: ${{ steps.buildozer.outputs.filename }}
+        path: bin/*.apk
         if-no-files-found: error
