@@ -2,81 +2,93 @@ name: Build All Android APKs
 
 on:
   push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          ffmpeg \
+          libsdl2-dev \
+          libsdl2-image-dev \
+          libsdl2-mixer-dev \
+          libsdl2-ttf-dev \
+          libportmidi-dev \
+          libswscale-dev \
+          libavformat-dev \
+          libavcodec-dev \
+          zlib1g-dev \
+          openjdk-17-jdk \
+          unzip \
+          zip \
+          autoconf \
+          libtool \
+          pkg-config \
+          libssl-dev
 
-      - name: Install System Dependencies
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git unzip wget curl \
-            libltdl-dev libffi-dev libssl-dev python3-dev \
-            zlib1g-dev libncurses5 libncurses5:i386 libstdc++6:i386
+    - name: Set up Android SDK & NDK
+      run: |
+        echo "Setting up Android SDK..."
+        mkdir -p $HOME/android/sdk
+        export ANDROID_HOME=$HOME/android/sdk
+        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
 
-      - name: Setup Android SDK CommandLine Tools
-        run: |
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          cd $HOME/android-sdk/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9441835_latest.zip -O commandlinetools.zip
-          unzip -q commandlinetools.zip
-          mv cmdline-tools latest
-          rm commandlinetools.zip
+        # Install Command Line Tools
+        cd $HOME/android/sdk
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O commandlinetools.zip
+        unzip -q commandlinetools.zip
+        mkdir -p cmdline-tools/latest
+        mv cmdline-tools/bin cmdline-tools/latest/
+        mv cmdline-tools/lib cmdline-tools/latest/
+        rm commandlinetools.zip
 
-      - name: Set Environment Variables
-        run: |
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+        # Accept licenses and install platform-tools, platforms, build-tools, ndk
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-      - name: Accept Android SDK Licenses
-        run: |
-          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$HOME/android-sdk || true
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
-      - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade cython==0.29.36 buildozer
+    - name: Install Python Dependencies & Buildozer
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade cython==0.29.36
+        pip install --upgrade buildozer
+        pip install --upgrade pillow
 
-      - name: Build APK for ARM7
-        run: |
-          cp buildozer-arm7.spec buildozer.spec
-          yes | buildozer -v android debug
+    - name: Build ARM7 APK
+      run: |
+        cp buildozer-arm7.spec buildozer.spec
+        buildozer -v android debug
 
-      - name: Build APK for ARM8
-        run: |
-          cp buildozer-arm8.spec buildozer.spec
-          yes | buildozer -v android debug
+    - name: Build ARM8 APK
+      run: |
+        cp buildozer-arm8.spec buildozer.spec
+        buildozer -v android debug
 
-      - name: Build APK for Universal
-        run: |
-          cp buildozer-universal.spec buildozer.spec
-          yes | buildozer -v android debug
+    - name: Build Universal APK
+      run: |
+        cp buildozer-universal.spec buildozer.spec
+        buildozer -v android debug
 
-      - name: Upload All APK Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: all-apk-files
-          path: bin/*.apk
+    - name: Upload APK Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: all-amirah-apks
+        path: bin/*.apk
