@@ -38,21 +38,28 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython==0.29.36
 
-    - name: Setup Android SDK for Buildozer
+    - name: Setup Android SDK (compatible with Buildozer)
       run: |
-        # Create the exact path Buildozer expects
+        # Create Buildozer expected path
         mkdir -p $HOME/.buildozer/android/platform/android-sdk
         cd $HOME/.buildozer/android/platform/android-sdk
 
         # Download commandlinetools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
         unzip -q tools.zip
+
+        # Create the structure Buildozer expects
         mkdir -p cmdline-tools
         mv cmdline-tools latest
         mv latest cmdline-tools/
 
+        # Create old-style tools folder that Buildozer looks for
+        mkdir -p tools/bin
+        ln -s $PWD/cmdline-tools/latest/bin/sdkmanager tools/bin/sdkmanager
+        ln -s $PWD/cmdline-tools/latest/bin/avdmanager tools/bin/avdmanager || true
+
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin
 
         # Accept licenses
         yes | sdkmanager --licenses || true
@@ -60,18 +67,16 @@ jobs:
 
         # Install packages
         sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653" || true
-        sdkmanager "platform-tools" "platforms;android-33" "build-tools;34.0.0" "ndk;25.2.9519653" || true
 
-        echo "=== Checking installed packages ==="
+        echo "=== Checking structure ==="
+        ls -la $ANDROID_HOME/tools/bin/ || true
         ls -la $ANDROID_HOME/build-tools/ || true
-        ls -la $ANDROID_HOME/platforms/ || true
 
     - name: Build APK
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools
 
-        # Add build-tools to PATH
         for dir in $ANDROID_HOME/build-tools/*; do
           if [ -d "$dir" ]; then
             export PATH=$PATH:$dir
