@@ -28,32 +28,37 @@ jobs:
           distribution: zulu
           java-version: '17'
 
-      - name: Set up Android SDK
+      - name: Set up Android SDK tools
         uses: android-actions/setup-android@v4
         with:
           packages: ''
 
-      - name: Install Android SDK packages
+      - name: Install Android SDK in Buildozer path
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager --install \
+          export SDK_ROOT=/home/runner/android-sdk
+          mkdir -p "$SDK_ROOT"
+
+          yes | sdkmanager --sdk_root="$SDK_ROOT" --licenses
+
+          sdkmanager --sdk_root="$SDK_ROOT" --install \
             "platform-tools" \
             "platforms;android-33" \
             "build-tools;33.0.2" \
             "ndk;25.2.9519653"
 
-      - name: Configure Android SDK
-        run: |
-          echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROIDSDK=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROIDNDK=$SDK_ROOT/ndk/25.2.9519653" >> "$GITHUB_ENV"
           echo "ANDROIDAPI=33" >> "$GITHUB_ENV"
           echo "ANDROIDMINAPI=21" >> "$GITHUB_ENV"
 
-          test -x "$ANDROID_HOME/build-tools/33.0.2/aidl"
-          echo "AIDL exists."
-          test -d "$ANDROID_HOME/ndk/25.2.9519653"
-          echo "Android NDK exists."
+          test -x "$SDK_ROOT/build-tools/33.0.2/aidl"
+          test -d "$SDK_ROOT/platforms/android-33"
+          test -d "$SDK_ROOT/ndk/25.2.9519653"
+
+          echo "Android SDK installation verified."
+          ls -la "$SDK_ROOT/build-tools/33.0.2"
 
       - name: Install system dependencies
         run: |
@@ -79,6 +84,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install buildozer cython==0.29.36 virtualenv
+
+      - name: Verify Buildozer configuration
+        run: |
+          grep -E '^(android.sdk_path|android.ndk_path|android.api|android.minapi|android.ndk|android.archs|android.skip_update)' buildozer.spec
+
+          test -x /home/runner/android-sdk/build-tools/33.0.2/aidl
+          test -d /home/runner/android-sdk/platforms/android-33
+          test -d /home/runner/android-sdk/ndk/25.2.9519653
 
       - name: Clean previous build
         run: |
