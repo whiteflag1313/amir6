@@ -48,24 +48,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade buildozer cython==0.29.36 virtualenv
 
+      - name: Create output directory
+        run: mkdir -p final_apks
+
       - name: Build ARM7 APK
         run: |
-          buildozer -v --spec buildozer-arm7.spec android debug
+          cp buildozer-arm7.spec buildozer.spec
+          buildozer -v android debug
+          cp bin/*.apk final_apks/app-arm7.apk || true
 
       - name: Build ARM8 APK
         run: |
-          buildozer -v --spec buildozer-arm8.spec android debug
+          rm -rf bin/
+          cp buildozer-arm8.spec buildozer.spec
+          buildozer -v android debug
+          cp bin/*.apk final_apks/app-arm8.apk || true
 
       - name: Build Universal APK
         run: |
-          buildozer -v --spec buildozer-universal.spec android debug
+          rm -rf bin/
+          cp buildozer-universal.spec buildozer.spec
+          buildozer -v android debug
+          cp bin/*.apk final_apks/app-universal.apk || true
 
       - name: List built files
         run: |
-          ls -la bin/
+          ls -la final_apks/
 
       - name: Upload All APKs
         uses: actions/upload-artifact@v4
         with:
           name: all-android-apks
-          path: bin/*.apk
+          path: final_apks/*.apk
