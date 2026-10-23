@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '11'
+          java-version: '17'
 
       - name: Install system dependencies
         run: |
@@ -47,17 +47,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade buildozer cython==0.29.36 virtualenv
-
-      - name: Configure Pre-installed Android SDK
-        run: |
-          # لینک کردن SDK پیش‌فرض گیت‌هاب به مسیر پیش‌فرض بیلدوزر
-          sudo ln -s /usr/local/lib/android/sdk /home/runner/android-sdk
-          sudo chmod -R 777 /home/runner/android-sdk
-          
-          # نصب و فعال‌سازی ابزارهای ضروری بیلد (build-tools و platform-tools حاوی aidl)
-          export ANDROID_HOME=/home/runner/android-sdk
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.2" "platforms;android-33" "platform-tools"
 
       - name: Create output directory
         run: mkdir -p final_apks
