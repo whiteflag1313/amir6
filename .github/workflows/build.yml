@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     container:
-      image: kivy/buildozer:1.5.0   # <--- این خط را تغییر دهید
+      image: ballspins/kivy-build:latest   # <--- ایمیج جایگزین سازگار با پایتون ۳.۱۰
 
     strategy:
       matrix:
