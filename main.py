@@ -307,4 +307,135 @@ class Amir6App(App):
                         self.results.sort()
                         rank = self.results.index((ms, ip)) + 1
                         self.pending_rows.append((rank, ip, ms))
-                q.
+                q.task_done()
+
+        ts = [threading.Thread(target=worker, daemon=True) for _ in range(threads)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+
+        if self.running:
+            Clock.schedule_once(self.scan_done, 0)
+
+    def flush_rows(self, dt):
+        with self.lock:
+            rows = self.pending_rows[:]
+            self.pending_rows = []
+            pct = (self.tested / self.total * 100) if self.total else 0
+            found = self.found
+            tested = self.tested
+
+        for rank, ip, ms in rows:
+            self.results_layout.clear_widgets()
+            for i, (m, p) in enumerate(self.results[:50], 1):
+                self.results_layout.add_widget(IPRow(i, p, m, self))
+
+        self.progress.value = min(pct, 100)
+        self.lbl_status.text = f"اسکن...  {tested}/{self.total}  |  پیدا شد: {found}"
+
+        if self.results:
+            best_ms, best_ip = self.results[0]
+            self.lbl_best.text = f"بهترین: [color=00ccff]{best_ip}[/color]  [color=00ff88]{best_ms:.0f}ms[/color]"
+
+    def scan_done(self, *args):
+        self.running = False
+        self.btn_start.disabled = False
+        self.btn_stop.disabled = True
+        self.lbl_status.text = f"تموم شد!  {self.found} IP تمیز پیدا شد"
+        self.lbl_status.color = get_color_from_hex("#00ff88")
+        self.progress.value = 100
+
+    def open_save_dialog(self, *args):
+        if not self.results:
+            self.show_popup("خطا", "هیچ IP ای برای ذخیره وجود ندارد!")
+            return
+
+        content = BoxLayout(orientation="vertical", padding=12, spacing=10)
+        content.add_widget(Label(text="مسیر ذخیره فایل (قابل ویرایش):", color=get_color_from_hex("#aaaaaa"), font_size="12sp", size_hint_y=None, height=24))
+        
+        path_input = TextInput(
+            text=get_default_save_path(),
+            size_hint_y=None,
+            height=44,
+            font_size="11sp",
+            multiline=False
+        )
+        content.add_widget(path_input)
+
+        btn_save_action = Button(
+            text="تأیید و ذخیره نهایی",
+            size_hint_y=None,
+            height=44,
+            background_color=get_color_from_hex("#005500"),
+            color=get_color_from_hex("#ffffff"),
+            bold=True
+        )
+        content.add_widget(btn_save_action)
+
+        popup = Popup(
+            title="انتخاب محل ذخیره",
+            content=content,
+            size_hint=(0.9, 0.45),
+            background_color=get_color_from_hex("#1a1a2e")
+        )
+
+        def do_save(instance):
+            target_path = path_input.text.strip()
+            try:
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                existing = set()
+                if os.path.exists(target_path):
+                    existing = {l.strip() for l in open(target_path) if l.strip()}
+                all_ips = existing | {ip for _, ip in self.results}
+                with open(target_path, "w") as f:
+                    for ip in all_ips:
+                        f.write(ip + "\n")
+                popup.dismiss()
+                self.show_popup("ذخیره شد ✓", f"{len(all_ips)} IP ذخیره شد در:\n{target_path}")
+            except Exception as e:
+                self.show_popup("خطا در ذخیره", str(e))
+
+        btn_save_action.bind(on_press=do_save)
+        popup.open()
+
+    def clear_results(self, *args):
+        self.results = []
+        self.results_layout.clear_widgets()
+        self.lbl_best.text = "بهترین IP: —"
+        self.lbl_status.text = "پاک شد"
+        self.progress.value = 0
+
+    def show_toast(self, msg):
+        content = BoxLayout(orientation="vertical", padding=10, spacing=5)
+        content.add_widget(Label(text=msg, color=get_color_from_hex("#00ff88"), font_size="14sp", bold=True))
+        popup = Popup(title="اطلاع", content=content, size_hint=(0.7, 0.25), background_color=get_color_from_hex("#1a1a2e"))
+        Clock.schedule_once(lambda dt: popup.dismiss(), 1.2)
+        popup.open()
+
+    def show_popup(self, title, msg):
+        content = BoxLayout(orientation="vertical", padding=12, spacing=8)
+        content.add_widget(Label(
+            text=msg,
+            color=get_color_from_hex("#ffffff"),
+            font_size="13sp"
+        ))
+        btn = Button(
+            text="OK",
+            size_hint_y=None,
+            height=44,
+            background_color=get_color_from_hex("#005500")
+        )
+        content.add_widget(btn)
+        popup = Popup(
+            title=title,
+            content=content,
+            size_hint=(0.85, 0.4),
+            background_color=get_color_from_hex("#1a1a2e")
+        )
+        btn.bind(on_press=popup.dismiss)
+        popup.open()
+
+
+if __name__ == "__main__":
+    Amir6App().run()
