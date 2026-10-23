@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout repository
@@ -34,6 +34,26 @@ jobs:
             build-essential git unzip wget curl \
             libltdl-dev libffi-dev libssl-dev python3-dev \
             zlib1g-dev libncurses5 libncurses5:i386 libstdc++6:i386
+
+      - name: Setup Android SDK CommandLine Tools
+        run: |
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9441835_latest.zip -O commandlinetools.zip
+          unzip -q commandlinetools.zip
+          mv cmdline-tools latest
+          rm commandlinetools.zip
+
+      - name: Set Environment Variables
+        run: |
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$HOME/android-sdk || true
 
       - name: Install Python Dependencies
         run: |
