@@ -25,7 +25,7 @@ jobs:
           zlib1g-dev libncurses5-dev \
           libncursesw5-dev libtinfo5 \
           cmake libffi-dev libssl-dev \
-          build-essential ccache
+          build-essential
 
     - name: Install Python dependencies
       run: |
@@ -33,14 +33,24 @@ jobs:
         pip install "cython==0.29.33"
         pip install "buildozer==1.5.0"
 
-    - name: Build APK
+    - name: Accept Android licenses
       run: |
-        buildozer -v android debug 2>&1 | tee build_log.txt
-        echo "=== BUILD EXIT CODE: $? ==="
-        echo "=== BIN CONTENTS ==="
-        ls -la bin/ 2>/dev/null || echo "bin/ does not exist"
-        echo "=== LAST 100 LINES ==="
-        tail -100 build_log.txt
+        mkdir -p ~/.android
+        echo "count=0" > ~/.android/repositories.cfg
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;33.0.2" 2>/dev/null || true
+
+    - name: Build APK
+      env:
+        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        ANDROID_HOME: /usr/local/lib/android/sdk
+      run: |
+        mkdir -p ~/.buildozer/android/platform
+        ln -sf $ANDROID_SDK_ROOT ~/.buildozer/android/platform/android-sdk || true
+        yes | buildozer -v android debug 2>&1 | tail -200
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
@@ -49,7 +59,7 @@ jobs:
         path: bin/*.apk
         if-no-files-found: warn
 
-    - name: Upload build log
+    - name: Upload log
       if: always()
       uses: actions/upload-artifact@v4
       with:
