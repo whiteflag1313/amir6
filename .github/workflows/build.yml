@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 70
 
     steps:
     - uses: actions/checkout@v4
@@ -38,27 +38,34 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython==0.29.36
 
-    - name: Setup Android SDK
+    - name: Setup Android SDK + Licenses
       run: |
-        mkdir -p $HOME/android-sdk/cmdline-tools
-        cd $HOME/android-sdk
+        # Create SDK directory
+        export ANDROID_HOME=$HOME/android-sdk
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        cd $ANDROID_HOME
+
+        # Download commandlinetools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
         unzip -q cmdtools.zip
         mv cmdline-tools latest
         mkdir -p cmdline-tools
         mv latest cmdline-tools/
 
-        export ANDROID_HOME=$HOME/android-sdk
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 
-        # Accept all licenses forcefully
-        yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
+        # Force accept licenses (most reliable method)
+        mkdir -p $ANDROID_HOME/licenses
+        echo -e "\n24333f8a63b6825ea9c5514f07c98921cec307e" > $ANDROID_HOME/licenses/android-sdk-license
+        echo -e "\n84831b94096441f7a72800e7c138a44a" > $ANDROID_HOME/licenses/android-sdk-preview-license
+        echo -e "\nd56f5187479451eabf01fb78af6dfcb131a6481e" > $ANDROID_HOME/licenses/android-sdk-license
+        echo -e "\n24333f8a63b6825ea9c5514f07c98921cec307e" >> $ANDROID_HOME/licenses/android-sdk-license
 
-        # Install required packages
+        # Install packages
         sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-        # Verify aidl exists
-        ls -la $ANDROID_HOME/build-tools/33.0.2/aidl
+        # Check if aidl exists
+        ls -la $ANDROID_HOME/build-tools/33.0.2/
 
     - name: Build APK
       run: |
