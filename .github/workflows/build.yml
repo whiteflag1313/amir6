@@ -38,28 +38,49 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython==0.29.36
 
-    - name: Setup Android SDK (compatible with Buildozer)
+    - name: Setup Android SDK
       run: |
-        # Create Buildozer expected path
-        mkdir -p $HOME/.buildozer/android/platform/android-sdk
-        cd $HOME/.buildozer/android/platform/android-sdk
+        SDK_DIR=$HOME/.buildozer/android/platform/android-sdk
+        mkdir -p $SDK_DIR
+        cd $SDK_DIR
 
         # Download commandlinetools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
         unzip -q tools.zip
 
-        # Create the structure Buildozer expects
+        # Fix structure
         mkdir -p cmdline-tools
-        mv cmdline-tools latest
-        mv latest cmdline-tools/
+        if [ -d "cmdline-tools" ] && [ ! -d "cmdline-tools/latest" ]; then
+          mv cmdline-tools cmdline-tools_temp 2>/dev/null || true
+          mkdir -p cmdline-tools
+          mv cmdline-tools_temp cmdline-tools/latest 2>/dev/null || true
+        fi
 
-        # Create old-style tools folder that Buildozer looks for
+        # If still wrong, try another way
+        if [ ! -f "cmdline-tools/latest/bin/sdkmanager" ]; then
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+          # Move the actual content
+          if [ -d "cmdline-tools/bin" ]; then
+            mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+          fi
+        fi
+
+        # Create old tools structure that Buildozer desperately wants
         mkdir -p tools/bin
-        ln -s $PWD/cmdline-tools/latest/bin/sdkmanager tools/bin/sdkmanager
-        ln -s $PWD/cmdline-tools/latest/bin/avdmanager tools/bin/avdmanager || true
+        if [ -f "cmdline-tools/latest/bin/sdkmanager" ]; then
+          ln -sf $SDK_DIR/cmdline-tools/latest/bin/sdkmanager tools/bin/sdkmanager
+          ln -sf $SDK_DIR/cmdline-tools/latest/bin/avdmanager tools/bin/avdmanager 2>/dev/null || true
+          chmod +x tools/bin/sdkmanager
+        fi
 
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin
+        export ANDROID_HOME=$SDK_DIR
+        export PATH=$PATH:$SDK_DIR/cmdline-tools/latest/bin:$SDK_DIR/tools/bin
+
+        echo "=== Checking sdkmanager ==="
+        ls -la $SDK_DIR/tools/bin/ || true
+        ls -la $SDK_DIR/cmdline-tools/latest/bin/ || true
+        which sdkmanager || true
 
         # Accept licenses
         yes | sdkmanager --licenses || true
@@ -68,9 +89,9 @@ jobs:
         # Install packages
         sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653" || true
 
-        echo "=== Checking structure ==="
-        ls -la $ANDROID_HOME/tools/bin/ || true
-        ls -la $ANDROID_HOME/build-tools/ || true
+        echo "=== Final check ==="
+        ls -la $SDK_DIR/build-tools/ || true
+        ls -la $SDK_DIR/tools/bin/sdkmanager || true
 
     - name: Build APK
       run: |
