@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build All Android APKs
 
 on:
   push:
@@ -40,13 +40,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade cython==0.29.36 buildozer
 
-      - name: Build APK with Buildozer
+      - name: Build APK for ARM7
         run: |
-          # اینجا نام فایل spec دلخواهتان را مشخص می‌کنید (مثلاً buildozer-universal.spec)
-          yes | buildozer -v -spec buildozer-universal android debug
+          yes | buildozer -v -c buildozer-arm7.spec android debug
 
-      - name: Upload APK Artifact
+      - name: Build APK for ARM8
+        run: |
+          yes | buildozer -v -c buildozer-arm8.spec android debug
+
+      - name: Build APK for Universal
+        run: |
+          yes | buildozer -v -c buildozer-universal.spec android debug
+
+      - name: Upload All APK Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
+          name: all-apk-files
           path: bin/*.apk
