@@ -5,7 +5,7 @@ package.domain = org.amir6
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.2
-requirements = python3,kivy==2.3.0,openssl,certifi
+requirements = python3==3.11.9,kivy==2.3.0,openssl,certifi
 orientation = portrait
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 android.api = 33
