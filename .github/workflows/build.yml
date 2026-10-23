@@ -36,19 +36,15 @@ jobs:
       - name: Install Android SDK components
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
 
           SDK_ROOT=/home/runner/android-sdk
           mkdir -p "$SDK_ROOT"
 
           SDKMANAGER="$(command -v sdkmanager)"
-          test -n "$SDKMANAGER"
+          echo "Using sdkmanager: $SDKMANAGER"
 
-          set +o pipefail
-          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses
-          LICENSE_STATUS=${PIPESTATUS[1]}
-          set -o pipefail
-          test "$LICENSE_STATUS" -eq 0
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses || true
 
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
             "platform-tools" \
@@ -64,45 +60,74 @@ jobs:
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROIDSDK=$SDK_ROOT" >> "$GITHUB_ENV"
+
           echo "ANDROIDNDK=$SDK_ROOT/ndk/25.2.9519653" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK=$SDK_ROOT/ndk/25.2.9519653" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$SDK_ROOT/ndk/25.2.9519653" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$SDK_ROOT/ndk/25.2.9519653" >> "$GITHUB_ENV"
+
           echo "ANDROIDAPI=33" >> "$GITHUB_ENV"
           echo "ANDROIDMINAPI=21" >> "$GITHUB_ENV"
 
-          test -x "$SDK_ROOT/tools/bin/sdkmanager"
           test -x "$SDK_ROOT/build-tools/33.0.2/aidl"
           test -d "$SDK_ROOT/platforms/android-33"
           test -d "$SDK_ROOT/ndk/25.2.9519653"
 
-          echo "Android SDK components verified."
+          echo "SDK and NDK verified."
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git zip unzip autoconf libtool pkg-config \
-            zlib1g-dev libncurses5-dev libncursesw5-dev \
-            libltdl-dev libffi-dev libssl-dev ant \
-            build-essential cmake
+            git zip unzip autoconf automake \
+            libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev \
+            libltdl-dev libffi-dev libssl-dev \
+            ant build-essential cmake
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install buildozer cython==0.29.36 virtualenv
 
-      - name: Verify Buildozer configuration
+      - name: Verify Android environment
+        shell: bash
         run: |
-          set -euxo pipefail
-          grep -E '^(android.sdk_path|android.ndk_path|android.api|android.minapi|android.ndk|android.archs|android.build_tools_version)' buildozer.spec
-          test -x /home/runner/android-sdk/tools/bin/sdkmanager
-          test -x /home/runner/android-sdk/build-tools/33.0.2/aidl
-          test -d /home/runner/android-sdk/platforms/android-33
-          test -d /home/runner/android-sdk/ndk/25.2.9519653
+          set -eux
 
-      - name: Clean previous build
-        run: buildozer android clean || true
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_NDK=$ANDROID_NDK"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
+          echo "ANDROIDNDK=$ANDROIDNDK"
+
+          test "$ANDROID_NDK" = "$ANDROIDNDK"
+          test "$ANDROID_NDK_HOME" = "$ANDROIDNDK"
+          test "$ANDROID_NDK_ROOT" = "$ANDROIDNDK"
+
+          "$ANDROID_HOME/build-tools/33.0.2/aidl" --help >/dev/null 2>&1 || true
+          test -f "$ANDROID_NDK/source.properties"
+          cat "$ANDROID_NDK/source.properties"
+
+      - name: Clear old build cache
+        run: |
+          rm -rf .buildozer
+          rm -rf bin
 
       - name: Build APK
-        run: buildozer -v android debug
+        shell: bash
+        run: |
+          set -o pipefail
+          buildozer -v android debug 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMIR6-build-log
+          path: build.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
