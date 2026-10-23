@@ -17,7 +17,6 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.utils import get_color_from_hex
 from kivy.uix.popup import Popup
-from kivy.core.clipboard import Clipboard
 
 Window.clearcolor = get_color_from_hex("#0d0d0d")
 
@@ -34,7 +33,7 @@ CF_SUBNETS = [
     "2606:4700:300::/48","2606:4700:4700::/48",
 ]
 
-def get_default_save_path():
+def get_save_path():
     paths = [
         "/storage/emulated/0/Download/clean_ipv6.txt",
         "/sdcard/Download/clean_ipv6.txt",
@@ -43,10 +42,11 @@ def get_default_save_path():
     for p in paths:
         try:
             os.makedirs(os.path.dirname(p), exist_ok=True)
+            open(p, "a").close()
             return p
         except:
             pass
-    return "clean_ipv6.txt"
+    return paths[-1]
 
 def rand_ip():
     net = ipaddress.IPv6Network(random.choice(CF_SUBNETS), strict=False)
@@ -88,37 +88,43 @@ def test_ip(ip, pcount=3):
     return round(sum(pings) / len(pings), 1)
 
 
-class IPRow(Button):
-    def __init__(self, rank, ip, ms, app_instance, **kwargs):
+class IPRow(BoxLayout):
+    def __init__(self, rank, ip, ms, **kwargs):
         super().__init__(**kwargs)
-        self.ip = ip
-        self.app_instance = app_instance
+        self.orientation = "horizontal"
         self.size_hint_y = None
-        self.height = 45
-        self.background_normal = ''
-        self.background_color = get_color_from_hex("#141420")
-        
+        self.height = 40
+        self.padding = [8, 2]
+        self.spacing = 4
+
         if ms < 450:
-            color_hex = "#00ff88"
+            color = get_color_from_hex("#00ff88")
         elif ms < 650:
-            color_hex = "#ffcc00"
+            color = get_color_from_hex("#ffcc00")
         else:
-            color_hex = "#ff4444"
+            color = get_color_from_hex("#ff4444")
 
-        # تنظیم متن داخلی دکمه به صورت ساختاریافته تا تداخل ایجاد نشود
-        self.text = f"  {rank}.   {ip}    [{ms:.0f}ms]"
-        self.font_size = "11sp"
-        self.halign = "left"
-        self.valign = "middle"
-        self.color = get_color_from_hex(color_hex)
-        self.bind(size=self._update_text_size)
-
-    def _update_text_size(self, *args):
-        self.text_size = self.size
-
-    def on_press(self):
-        Clipboard.copy(self.ip)
-        self.app_instance.show_toast(f"کپی شد: {self.ip}")
+        self.add_widget(Label(
+            text=f"{rank}.",
+            size_hint_x=0.08,
+            color=get_color_from_hex("#888888"),
+            font_size="12sp"
+        ))
+        self.add_widget(Label(
+            text=ip,
+            size_hint_x=0.72,
+            color=get_color_from_hex("#00ccff"),
+            font_size="11sp",
+            halign="left",
+            text_size=(None, None)
+        ))
+        self.add_widget(Label(
+            text=f"{ms:.0f}ms",
+            size_hint_x=0.20,
+            color=color,
+            font_size="12sp",
+            bold=True
+        ))
 
 
 class Amir6App(App):
@@ -174,42 +180,42 @@ class Amir6App(App):
         btn_row = BoxLayout(size_hint_y=None, height=48, spacing=8)
 
         self.btn_start = Button(
-            text="▶ START",
+            text="▶  START SCAN",
             background_color=get_color_from_hex("#005500"),
             color=get_color_from_hex("#00ff88"),
             bold=True,
-            font_size="13sp"
+            font_size="14sp"
         )
         self.btn_start.bind(on_press=self.start_scan)
         btn_row.add_widget(self.btn_start)
 
         self.btn_stop = Button(
-            text="■ STOP",
+            text="■  STOP",
             background_color=get_color_from_hex("#550000"),
             color=get_color_from_hex("#ff4444"),
             bold=True,
-            font_size="13sp",
+            font_size="14sp",
             disabled=True
         )
         self.btn_stop.bind(on_press=self.stop_scan)
         btn_row.add_widget(self.btn_stop)
 
         self.btn_save = Button(
-            text="💾 SAVE",
+            text="💾  SAVE",
             background_color=get_color_from_hex("#003355"),
             color=get_color_from_hex("#00aaff"),
             bold=True,
-            font_size="13sp"
+            font_size="14sp"
         )
-        self.btn_save.bind(on_press=self.open_save_dialog)
+        self.btn_save.bind(on_press=self.save_results)
         btn_row.add_widget(self.btn_save)
 
         self.btn_clear = Button(
-            text="🗑 CLEAR",
+            text="🗑  CLEAR",
             background_color=get_color_from_hex("#222222"),
             color=get_color_from_hex("#888888"),
             bold=True,
-            font_size="13sp"
+            font_size="14sp"
         )
         self.btn_clear.bind(on_press=self.clear_results)
         btn_row.add_widget(self.btn_clear)
@@ -222,11 +228,11 @@ class Amir6App(App):
 
         # ─── Status ───
         self.lbl_status = Label(
-            text="آماده — START بزن (روی هر IP بزنید کپی می‌شود)",
+            text="آماده — START بزن",
             color=get_color_from_hex("#888888"),
             size_hint_y=None,
             height=28,
-            font_size="11sp"
+            font_size="12sp"
         )
         root.add_widget(self.lbl_status)
 
@@ -251,7 +257,7 @@ class Amir6App(App):
         self.results_layout = GridLayout(
             cols=1,
             size_hint_y=None,
-            spacing=3,
+            spacing=2,
             padding=[0, 4]
         )
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
@@ -339,7 +345,7 @@ class Amir6App(App):
         for rank, ip, ms in rows:
             self.results_layout.clear_widgets()
             for i, (m, p) in enumerate(self.results[:50], 1):
-                self.results_layout.add_widget(IPRow(i, p, m, self))
+                self.results_layout.add_widget(IPRow(i, p, m))
 
         self.progress.value = min(pct, 100)
         self.lbl_status.text = f"اسکن...  {tested}/{self.total}  |  پیدا شد: {found}"
@@ -356,58 +362,19 @@ class Amir6App(App):
         self.lbl_status.color = get_color_from_hex("#00ff88")
         self.progress.value = 100
 
-    def open_save_dialog(self, *args):
+    def save_results(self, *args):
         if not self.results:
-            self.show_popup("خطا", "هیچ IP ای برای ذخیره وجود ندارد!")
+            self.show_popup("خطا", "هیچ IP ای نیست!")
             return
-
-        content = BoxLayout(orientation="vertical", padding=12, spacing=10)
-        content.add_widget(Label(text="مسیر ذخیره فایل (قابل ویرایش):", color=get_color_from_hex("#aaaaaa"), font_size="12sp", size_hint_y=None, height=24))
-        
-        path_input = TextInput(
-            text=get_default_save_path(),
-            size_hint_y=None,
-            height=44,
-            font_size="11sp",
-            multiline=False
-        )
-        content.add_widget(path_input)
-
-        btn_save_action = Button(
-            text="تأیید و ذخیره نهایی",
-            size_hint_y=None,
-            height=44,
-            background_color=get_color_from_hex("#005500"),
-            color=get_color_from_hex("#ffffff"),
-            bold=True
-        )
-        content.add_widget(btn_save_action)
-
-        popup = Popup(
-            title="انتخاب محل ذخیره",
-            content=content,
-            size_hint=(0.9, 0.45),
-            background_color=get_color_from_hex("#1a1a2e")
-        )
-
-        def do_save(instance):
-            target_path = path_input.text.strip()
-            try:
-                os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                existing = set()
-                if os.path.exists(target_path):
-                    existing = {l.strip() for l in open(target_path) if l.strip()}
-                all_ips = existing | {ip for _, ip in self.results}
-                with open(target_path, "w") as f:
-                    for ip in all_ips:
-                        f.write(ip + "\n")
-                popup.dismiss()
-                self.show_popup("ذخیره شد ✓", f"{len(all_ips)} IP ذخیره شد در:\n{target_path}")
-            except Exception as e:
-                self.show_popup("خطا در ذخیره", str(e))
-
-        btn_save_action.bind(on_press=do_save)
-        popup.open()
+        path = get_save_path()
+        existing = set()
+        if os.path.exists(path):
+            existing = {l.strip() for l in open(path) if l.strip()}
+        all_ips = existing | {ip for _, ip in self.results}
+        with open(path, "w") as f:
+            for ip in all_ips:
+                f.write(ip + "\n")
+        self.show_popup("ذخیره شد ✓", f"{len(all_ips)} IP\n\n{path}")
 
     def clear_results(self, *args):
         self.results = []
@@ -415,14 +382,6 @@ class Amir6App(App):
         self.lbl_best.text = "بهترین IP: —"
         self.lbl_status.text = "پاک شد"
         self.progress.value = 0
-
-    def show_toast(self, msg):
-        # نمایش هشدار موقت کپی شدن
-        content = BoxLayout(orientation="vertical", padding=10, spacing=5)
-        content.add_widget(Label(text=msg, color=get_color_from_hex("#00ff88"), font_size="14sp", bold=True))
-        popup = Popup(title="اطلاع", content=content, size_hint=(0.7, 0.25), background_color=get_color_from_hex("#1a1a2e"))
-        Clock.schedule_once(lambda dt: popup.dismiss(), 1.2)
-        popup.open()
 
     def show_popup(self, title, msg):
         content = BoxLayout(orientation="vertical", padding=12, spacing=8)
