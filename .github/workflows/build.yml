@@ -1,4 +1,4 @@
-name: Build Universal APK
+name: Build All APKs
 
 on:
   push:
@@ -8,6 +8,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - spec_file: buildozer-arm8.spec
+            artifact_name: AMIR6-ARM64-APK
+          - spec_file: buildozer-arm7.spec
+            artifact_name: AMIR6-ARM7-APK
+          - spec_file: buildozer-universal.spec
+            artifact_name: AMIR6-Universal-APK
 
     steps:
     - name: Checkout code
@@ -34,16 +43,12 @@ jobs:
     - name: Configure Android SDK for Buildozer
       run: |
         export ANDROID_HOME=/usr/local/lib/android/sdk
-        
-        # نصب پکیج‌های لازم
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;33.0.2" "platforms;android-33" "ndk;25.2.9519653"
         
-        # کپی کردن کل ابزارها به پوشه tools تا بیلدوزر و sdkmanager کرش نکنند
         sudo mkdir -p $ANDROID_HOME/tools
         sudo cp -r $ANDROID_HOME/cmdline-tools/latest/* $ANDROID_HOME/tools/
         
-        # لینک دادن به مسیری که بیلدوزر دقیقا انتظار دارد
         mkdir -p ~/.buildozer/android/platform
         ln -sfn $ANDROID_HOME ~/.buildozer/android/platform/android-sdk
         ln -sfn $ANDROID_HOME/ndk/25.2.9519653 ~/.buildozer/android/platform/android-ndk-r25c
@@ -58,12 +63,12 @@ jobs:
       env:
         CI: "true"
       run: |
-        cp buildozer-universal.spec buildozer.spec
+        cp ${{ matrix.spec_file }} buildozer.spec
         buildozer -v android debug
 
-    - name: Upload APK
+    - name: Upload APK Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: AMIR6-Universal-APK
+        name: ${{ matrix.artifact_name }}
         path: bin/*.apk
         if-no-files-found: error
