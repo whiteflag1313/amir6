@@ -38,39 +38,44 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython==0.29.36
 
-    - name: Setup Android SDK
+    - name: Setup Android SDK for Buildozer
       run: |
-        mkdir -p $HOME/android-sdk
-        cd $HOME/android-sdk
+        # Create the exact path Buildozer expects
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk
+        cd $HOME/.buildozer/android/platform/android-sdk
 
+        # Download commandlinetools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
         unzip -q tools.zip
         mkdir -p cmdline-tools
         mv cmdline-tools latest
         mv latest cmdline-tools/
 
-        export ANDROID_HOME=$HOME/android-sdk
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 
+        # Accept licenses
         yes | sdkmanager --licenses || true
         yes | sdkmanager --licenses || true
 
+        # Install packages
         sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653" || true
         sdkmanager "platform-tools" "platforms;android-33" "build-tools;34.0.0" "ndk;25.2.9519653" || true
 
-        echo "=== build-tools folders ==="
+        echo "=== Checking installed packages ==="
         ls -la $ANDROID_HOME/build-tools/ || true
+        ls -la $ANDROID_HOME/platforms/ || true
 
     - name: Build APK
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-        export PATH=$PATH:$ANDROID_HOME/platform-tools
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 
-        # Add the first available build-tools to PATH
+        # Add build-tools to PATH
         for dir in $ANDROID_HOME/build-tools/*; do
           if [ -d "$dir" ]; then
             export PATH=$PATH:$dir
+            echo "Using build-tools: $dir"
             break
           fi
         done
