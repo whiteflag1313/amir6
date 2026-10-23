@@ -27,11 +27,11 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Install Dependencies & AIDL
+    - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev libltdl-dev aidl
-        wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2_amd64.deb
+        sudo apt-get install -y build-essential git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev libltdl-dev
+        sudo wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2_amd64.deb
         sudo dpkg -i libtinfo5_6.3-2_amd64.deb
 
     - name: Install Buildozer
@@ -46,9 +46,11 @@ jobs:
     - name: Build APK
       timeout-minutes: 180
       env:
-        CI: "true"
+        # این دو خط جادویی باعث میشن بیلدوزر گمراه نشه
+        ANDROID_HOME: ""
+        ANDROID_SDK_ROOT: ""
       run: |
-        buildozer -v android debug
+        echo "y" | buildozer -v android debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
