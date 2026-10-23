@@ -13,6 +13,8 @@ android.minapi = 21
 android.ndk = 25b
 android.archs = armeabi-v7a
 android.allow_backup = True
+android.sdk_path = /home/runner/android-sdk
+android.ndk_path = /home/runner/android-sdk/ndk/25.2.9519653
 fullscreen = 0
 
 [buildozer]
