@@ -45,12 +45,15 @@ jobs:
       - name: Configure Android SDK
         run: |
           echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
           echo "ANDROIDAPI=33" >> "$GITHUB_ENV"
           echo "ANDROIDMINAPI=21" >> "$GITHUB_ENV"
 
           test -x "$ANDROID_HOME/build-tools/33.0.2/aidl"
-          "$ANDROID_HOME/build-tools/33.0.2/aidl" --version
+          echo "AIDL exists."
+          test -d "$ANDROID_HOME/ndk/25.2.9519653"
+          echo "Android NDK exists."
 
       - name: Install system dependencies
         run: |
