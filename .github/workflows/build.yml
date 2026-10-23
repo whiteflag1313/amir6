@@ -24,9 +24,6 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
     - name: Install System Dependencies
       run: |
         sudo apt-get update
@@ -47,6 +44,11 @@ jobs:
           libtool \
           pkg-config \
           libssl-dev
+
+    - name: Set Environment Variables
+      run: |
+        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk-bundle" >> $GITHUB_ENV
 
     - name: Install Python Dependencies & Buildozer
       run: |
