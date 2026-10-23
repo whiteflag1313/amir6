@@ -57,6 +57,7 @@ jobs:
     - name: Build ARM7 APK
       run: |
         export ANDROID_HOME=$HOME/android-sdk
+        export NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/33.0.2
         cp buildozer-arm7.spec buildozer.spec
         buildozer -v android debug
@@ -64,6 +65,7 @@ jobs:
     - name: Build ARM8 APK
       run: |
         export ANDROID_HOME=$HOME/android-sdk
+        export NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/33.0.2
         cp buildozer-arm8.spec buildozer.spec
         buildozer -v android debug
@@ -71,6 +73,7 @@ jobs:
     - name: Build Universal APK
       run: |
         export ANDROID_HOME=$HOME/android-sdk
+        export NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/33.0.2
         cp buildozer-universal.spec buildozer.spec
         buildozer -v android debug
