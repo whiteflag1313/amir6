@@ -4,17 +4,19 @@ package.name = amir6
 package.domain = org.amir6
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
-version = 1.1
-requirements = python3,kivy==2.3.0,openssl,certifi
+version = 1.2
+requirements = python3,kivy==2.2.1,openssl
 orientation = portrait
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 android.api = 33
 android.minapi = 21
-android.ndk = 25c
+android.ndk = 25b
 android.archs = arm64-v8a
-android.allow_backup = True
+android.sdk_path = /home/runner/android-sdk
+android.ndk_path = /home/runner/android-sdk/ndk/25.2.9519653
+android.build_tools_version = 33.0.2
+android.skip_update = True
 fullscreen = 0
-android.presplash_color = #0d0d0d
 
 [buildozer]
 log_level = 2
