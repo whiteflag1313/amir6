@@ -7,61 +7,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    container:
+      image: kivy/buildozer:latest
+
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip \
-          openjdk-17-jdk \
-          autoconf libtool pkg-config \
-          zlib1g-dev libncurses5-dev \
-          libncursesw5-dev libtinfo5 \
-          cmake libffi-dev libssl-dev \
-          build-essential
-
-    - name: Install Python dependencies
-      run: |
-        pip install --upgrade pip
-        pip install "cython==0.29.33"
-        pip install "buildozer==1.5.0"
-
-    - name: Accept Android licenses
-      run: |
-        mkdir -p ~/.android
-        echo "count=0" > ~/.android/repositories.cfg
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
-          "platform-tools" \
-          "platforms;android-33" \
-          "build-tools;33.0.2" 2>/dev/null || true
-
     - name: Build APK
-      env:
-        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-        ANDROID_HOME: /usr/local/lib/android/sdk
       run: |
-        mkdir -p ~/.buildozer/android/platform
-        ln -sf $ANDROID_SDK_ROOT ~/.buildozer/android/platform/android-sdk || true
-        yes | buildozer -v android debug 2>&1 | tail -200
+        buildozer -v android debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: amir6-apk
         path: bin/*.apk
-        if-no-files-found: warn
-
-    - name: Upload log
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-log
-        path: build_log.txt
+        if-no-files-found: error
