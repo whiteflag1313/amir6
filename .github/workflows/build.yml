@@ -42,12 +42,33 @@ jobs:
               libffi-dev \
               libssl-dev \
               ant \
-              build-essential
+              build-essential \
+              wget
 
       - name: Install Python packages
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade buildozer cython==0.29.36 virtualenv
+
+      - name: Setup Android SDK Manually (Fix Aidl Error)
+        run: |
+          ANDROID_HOME="/home/runner/android-sdk"
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          cd $ANDROID_HOME/cmdline-tools
+          
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          mkdir -p latest
+          mv bin lib latest/ 2>/dev/null || true
+          rm cmdline-tools.zip
+          
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
       - name: Create output directory
         run: mkdir -p final_apks
@@ -60,14 +81,14 @@ jobs:
 
       - name: Build ARM8 APK
         run: |
-          rm -rf bin/ .buildozer/
+          rm -rf bin/
           cp buildozer-arm8.spec buildozer.spec
           buildozer -v android debug
           cp bin/*.apk final_apks/app-arm8.apk || true
 
       - name: Build Universal APK
         run: |
-          rm -rf bin/ .buildozer/
+          rm -rf bin/
           cp buildozer-universal.spec buildozer.spec
           buildozer -v android debug
           cp bin/*.apk final_apks/app-universal.apk || true
