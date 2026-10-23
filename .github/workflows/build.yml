@@ -43,12 +43,31 @@ jobs:
           autoconf \
           libtool \
           pkg-config \
-          libssl-dev
+          libssl-dev \
+          unzip \
+          wget
 
-    - name: Set Environment Variables
+    - name: Force Fix Android SDK & Buildozer Paths
       run: |
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk-bundle" >> $GITHUB_ENV
+        # ساختن دقیق همون مسیری که بیلدوزر گدایی می‌کنه
+        sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
+        sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools/latest
+        
+        # دانلود commandlinetools و ریختن تو مسیر
+        cd /tmp
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O commandlinetools.zip
+        unzip -q commandlinetools.zip
+        sudo mv cmdline-tools/* /usr/local/lib/android/sdk/cmdline-tools/latest/
+        
+        # کپی کردن ابزارها به مسیری که بیلدوزر خطا میده تا خفه بشه
+        sudo ln -s /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager
+        
+        # دسترسی کامل دادن
+        sudo chmod -R 777 /usr/local/lib/android/sdk
+        
+        # اکسپورت متغیرها
+        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
 
     - name: Install Python Dependencies & Buildozer
       run: |
