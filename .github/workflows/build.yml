@@ -27,6 +27,16 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
+    - name: Fix Android SDK Path & Install Packages
+      run: |
+        # ۱. ساخت لینک نمادین برای رفع باگ پیدا نکردن sdkmanager
+        sudo mkdir -p /usr/local/lib/android/sdk
+        sudo ln -sfn /usr/local/lib/android/sdk/cmdline-tools/latest /usr/local/lib/android/sdk/tools
+
+        # ۲. قبول لایسنس‌ها و نصب پکیج‌های مورد نیاز اندروید
+        yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+        /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.2" "platforms;android-33" "ndk;25.2.9519653"
+
     - name: Install System Dependencies
       run: |
         sudo apt-get update
@@ -46,11 +56,9 @@ jobs:
     - name: Build APK
       timeout-minutes: 180
       env:
-        # این دو خط جادویی باعث میشن بیلدوزر گمراه نشه
-        ANDROID_HOME: ""
-        ANDROID_SDK_ROOT: ""
+        CI: "true"
       run: |
-        echo "y" | buildozer -v android debug
+        buildozer -v android debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
