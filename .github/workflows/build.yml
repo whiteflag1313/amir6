@@ -1,121 +1,64 @@
 name: Build APK
+
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip autoconf libtool \
-          pkg-config zlib1g-dev libncurses5-dev \
-          libncursesw5-dev libtinfo5 cmake \
-          libffi-dev libssl-dev build-essential
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+              git \
+              zip \
+              unzip \
+              autoconf \
+              libtool \
+              pkg-config \
+              zlib1g-dev \
+              libncurses5-dev \
+              libncursesw5-dev \
+              libltdl-dev \
+              libffi-dev \
+              libssl-dev \
+              ant \
+              build-essential
 
-    - name: Install Python packages
-      run: |
-        pip install --upgrade pip
-        pip install "cython==0.29.33" "buildozer==1.5.0"
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade buildozer cython==0.29.36 virtualenv setuptools
 
-    - name: Setup Android SDK
-      run: |
-        SDK=$HOME/android-sdk
-        mkdir -p $SDK
-        
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-        unzip -q cmdtools.zip -d /tmp/cmdtools_extract
-        
-        echo "=== extracted contents ==="
-        ls /tmp/cmdtools_extract/
-        
-        mkdir -p $SDK/cmdline-tools/latest
-        cp -r /tmp/cmdtools_extract/*/* $SDK/cmdline-tools/latest/ 2>/dev/null || \
-        cp -r /tmp/cmdtools_extract/* $SDK/cmdline-tools/latest/ 2>/dev/null || true
-        
-        echo "=== sdkmanager check ==="
-        ls $SDK/cmdline-tools/latest/bin/ || true
-        
-        export PATH=$PATH:$SDK/cmdline-tools/latest/bin
-        
-        yes | sdkmanager --sdk_root=$SDK --licenses > /dev/null 2>&1 || true
-        sdkmanager --sdk_root=$SDK \
-          "platform-tools" \
-          "platforms;android-33" \
-          "build-tools;33.0.2" \
-          "ndk;25.2.9519653"
-        
-        mkdir -p $SDK/tools/bin
-        ln -sf $SDK/cmdline-tools/latest/bin/sdkmanager $SDK/tools/bin/sdkmanager
-        ln -sf $SDK/cmdline-tools/latest/bin/avdmanager $SDK/tools/bin/avdmanager
-        
-        echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
-        echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$SDK/ndk/25.2.9519653" >> $GITHUB_ENV
+      - name: Clean buildozer cache to prevent corruption
+        run: |
+          buildozer clean || true
 
-    - name: Configure buildozer
-      run: |
-        SDK=$HOME/android-sdk
-        mkdir -p $HOME/.buildozer/android/platform
-        ln -sf $SDK $HOME/.buildozer/android/platform/android-sdk
-        ln -sf $SDK/ndk/25.2.9519653 $HOME/.buildozer/android/platform/android-ndk-r25b
-        mkdir -p bin
+      - name: Build APK with Buildozer
+        run: |
+          buildozer -v android debug
 
-    - name: Build ARM64 APK
-      run: |
-        sed -i 's/^android.archs.*/android.archs = arm64-v8a/' buildozer.spec
-        buildozer -v android debug
-        cp bin/*-debug.apk bin/amir6-arm64.apk 2>/dev/null || true
-        rm -rf .buildozer/android/app
-
-    - name: Build ARM7 APK
-      run: |
-        sed -i 's/^android.archs.*/android.archs = armeabi-v7a/' buildozer.spec
-        buildozer -v android debug
-        cp bin/*-debug.apk bin/amir6-arm7.apk 2>/dev/null || true
-        rm -rf .buildozer/android/app
-
-    - name: Build Universal APK
-      run: |
-        sed -i 's/^android.archs.*/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
-        buildozer -v android debug
-        cp bin/*-debug.apk bin/amir6-universal.apk 2>/dev/null || true
-
-    - name: Upload ARM64
-      uses: actions/upload-artifact@v4
-      with:
-        name: amir6-arm64
-        path: bin/amir6-arm64.apk
-        if-no-files-found: warn
-
-    - name: Upload ARM7
-      uses: actions/upload-artifact@v4
-      with:
-        name: amir6-arm7
-        path: bin/amir6-arm7.apk
-        if-no-files-found: warn
-
-    - name: Upload Universal
-      uses: actions/upload-artifact@v4
-      with:
-        name: amir6-universal
-        path: bin/amir6-universal.apk
-        if-no-files-found: warn
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: bin/*.apk
