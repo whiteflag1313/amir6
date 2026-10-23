@@ -7,9 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    container:
-      image: ballspins/kivy-build:latest   # <--- ایمیج جایگزین سازگار با پایتون ۳.۱۰
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
@@ -19,31 +17,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Fix Git Safe Directory
-      run: git config --global --add safe.directory /github/workspace
-
-    - name: Cache Buildozer global directory
-      uses: actions/cache@v4
-      with:
-        path: ~/.buildozer
-        key: buildozer-global-${{ hashFiles('buildozer-*.spec') }}
-        restore-keys: |
-          buildozer-global-
-
     - name: Setup buildozer.spec for ${{ matrix.arch }}
       run: |
         cp buildozer-${{ matrix.arch }}.spec buildozer.spec
 
-    - name: Build APK
-      timeout-minutes: 120
-      env:
-        CI: "true"
-      run: |
-        yes | buildozer -v android debug
+    - name: Build with Buildozer
+      uses: ArtemSBulgakov/buildozer-action@v1
+      id: buildozer
+      with:
+        command: buildozer android debug
+        buildozer_version: stable
 
     - name: Upload APK (${{ matrix.arch }})
       uses: actions/upload-artifact@v4
       with:
         name: AMIR6-${{ matrix.arch }}-APK
-        path: bin/*.apk
+        path: ${{ steps.buildozer.outputs.filename }}
         if-no-files-found: error
