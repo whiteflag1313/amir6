@@ -1,21 +1,110 @@
+name: Build All Android APKs
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Set up Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          ffmpeg \
+          libsdl2-dev \
+          libsdl2-image-dev \
+          libsdl2-mixer-dev \
+          libsdl2-ttf-dev \
+          libportmidi-dev \
+          libswscale-dev \
+          libavformat-dev \
+          libavcodec-dev \
+          zlib1g-dev \
+          autoconf \
+          libtool \
+          pkg-config \
+          libssl-dev \
+          unzip \
+          wget
+
+    - name: Pre-setup Buildozer Android Environment
+      run: |
+        # ساختن ساختار پوشه‌ای که بیلدوزر به زور آنجا را نگاه می‌کند
+        mkdir -p $HOME/.buildozer/android/platform
+        mkdir -p /usr/local/lib/android/sdk
+        
+        # دانلود و آماده‌سازی ابزار خط فرمان اندروید
+        cd /tmp
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+        unzip -q tools.zip
+        mkdir -p /usr/local/lib/android/sdk/cmdline-tools/latest
+        mv cmdline-tools/* /usr/local/lib/android/sdk/cmdline-tools/latest/
+        rm tools.zip
+
+        # تنظیم مجوزها و لایسنس‌ها
+        yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/usr/local/lib/android/sdk --licenses
+        /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/usr/local/lib/android/sdk "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+
+        # لینک کردن مسیرها برای جلوگیری از خطای گم شدن sdkmanager
+        sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
+        sudo ln -s /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager
+
+        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+
+    - name: Install Python Dependencies & Buildozer
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade cython==0.29.36
+        pip install --upgrade buildozer
+        pip install --upgrade pillow
+
     - name: Build ARM7 APK
       run: |
         cp buildozer-arm7.spec buildozer.spec
-        # تزریق مستقیم مسیر SDK به فایل spec در حین اجرا
-        echo "android.sdk_path = $HOME/android/sdk" >> buildozer.spec
-        echo "android.skip_update = False" >> buildozer.spec
+        echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
+        echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
+        echo "android.skip_update = True" >> buildozer.spec
         buildozer -v android debug
 
     - name: Build ARM8 APK
       run: |
         cp buildozer-arm8.spec buildozer.spec
-        echo "android.sdk_path = $HOME/android/sdk" >> buildozer.spec
-        echo "android.skip_update = False" >> buildozer.spec
+        echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
+        echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
+        echo "android.skip_update = True" >> buildozer.spec
         buildozer -v android debug
 
     - name: Build Universal APK
       run: |
         cp buildozer-universal.spec buildozer.spec
-        echo "android.sdk_path = $HOME/android/sdk" >> buildozer.spec
-        echo "android.skip_update = False" >> buildozer.spec
+        echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
+        echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
+        echo "android.skip_update = True" >> buildozer.spec
         buildozer -v android debug
+
+    - name: Upload APK Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: all-amirah-apks
+        path: bin/*.apk
