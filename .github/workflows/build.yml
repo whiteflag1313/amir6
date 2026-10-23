@@ -34,7 +34,7 @@ jobs:
     - name: Install Python packages
       run: |
         pip install --upgrade pip
-        pip install "cython==0.29.33" "buildozer==1.5.0" virtualenv
+        pip install "cython==0.29.33" "buildozer==1.5.0"
 
     - name: Setup Android SDK
       run: |
@@ -53,27 +53,62 @@ jobs:
           "build-tools;33.0.2" \
           "ndk;25.2.9519653"
         
+        # symlink برای buildozer که مسیر قدیمی رو میگرده
+        mkdir -p $HOME/android-sdk/tools/bin
+        ln -sf $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+               $HOME/android-sdk/tools/bin/sdkmanager
+        ln -sf $HOME/android-sdk/cmdline-tools/latest/bin/avdmanager \
+               $HOME/android-sdk/tools/bin/avdmanager
+        
         echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
         echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
         echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.2.9519653" >> $GITHUB_ENV
 
-    - name: Configure buildozer paths
+    - name: Configure buildozer
       run: |
         mkdir -p $HOME/.buildozer/android/platform
         ln -sf $HOME/android-sdk $HOME/.buildozer/android/platform/android-sdk
-        ln -sf $HOME/android-sdk/ndk/25.2.9519653 $HOME/.buildozer/android/platform/android-ndk-r25b
+        ln -sf $HOME/android-sdk/ndk/25.2.9519653 \
+               $HOME/.buildozer/android/platform/android-ndk-r25b
+        mkdir -p bin
 
-    - name: Build APK
-      env:
-        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-        ANDROID_HOME: ${{ env.ANDROID_HOME }}
-        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+    - name: Build ARM64 APK
       run: |
+        sed -i 's/^android.archs.*/android.archs = arm64-v8a/' buildozer.spec
         buildozer -v android debug
+        cp bin/*-debug.apk bin/amir6-arm64.apk 2>/dev/null || true
+        rm -rf .buildozer/android/app
 
-    - name: Upload APK
+    - name: Build ARM7 APK
+      run: |
+        sed -i 's/^android.archs.*/android.archs = armeabi-v7a/' buildozer.spec
+        buildozer -v android debug
+        cp bin/*-debug.apk bin/amir6-arm7.apk 2>/dev/null || true
+        rm -rf .buildozer/android/app
+
+    - name: Build Universal APK
+      run: |
+        sed -i 's/^android.archs.*/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
+        buildozer -v android debug
+        cp bin/*-debug.apk bin/amir6-universal.apk 2>/dev/null || true
+
+    - name: Upload ARM64
       uses: actions/upload-artifact@v4
       with:
-        name: amir6-apk
-        path: bin/*.apk
-        if-no-files-found: error
+        name: amir6-arm64
+        path: bin/amir6-arm64.apk
+        if-no-files-found: warn
+
+    - name: Upload ARM7
+      uses: actions/upload-artifact@v4
+      with:
+        name: amir6-arm7
+        path: bin/amir6-arm7.apk
+        if-no-files-found: warn
+
+    - name: Upload Universal
+      uses: actions/upload-artifact@v4
+      with:
+        name: amir6-universal
+        path: bin/amir6-universal.apk
+        if-no-files-found: warn
