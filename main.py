@@ -85,7 +85,6 @@ class IPRow(BoxLayout):
         self.ip = ip
         self.rank = rank
 
-        # خط بالا: رتبه، آی‌پی و دکمه کپی
         top_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(26), spacing=dp(6))
         
         self.lbl_rank = Label(
@@ -124,7 +123,6 @@ class IPRow(BoxLayout):
 
         self.add_widget(top_layout)
 
-        # خط پایین: نمایش عدد پینگ زیر آی‌پی
         bottom_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(20))
         bottom_layout.add_widget(Label(text="", size_hint_x=0.08))
         
@@ -345,45 +343,47 @@ class Amir6App(App):
             self.show_popup("Error", "No IPs to save!")
             return
         
-        # لیست مسیرهای احتمالی برای ذخیره (تلاش برای پوشه دانلود و پشتیبان حافظه داخلی برنامه)
         paths = [
             "/storage/emulated/0/Download/clean_ipv6.txt",
-            "/sdcard/Download/clean_ipv6.txt",
-            os.path.join(self.user_data_dir, "clean_ipv6.txt")
+            "/sdcard/Download/clean_ipv6.txt"
         ]
         
-        saved_path = ""
+        saved_path = paths[0]
         success = False
-        for p in paths:
+        for path in paths:
             try:
-                folder = os.path.dirname(p)
+                folder = os.path.dirname(path)
                 if folder:
                     os.makedirs(folder, exist_ok=True)
                 
                 existing = set()
-                if os.path.exists(p):
+                if os.path.exists(path):
                     try:
-                        with open(p, "r") as f:
-                            existing = {l.strip() for l in f if l.strip()}
+                        with open(path, "r", encoding="utf-8") as f:
+                            for l in f:
+                                clean_l = l.strip()
+                                if clean_l:
+                                    existing.add(clean_l)
                     except Exception:
                         pass
                 
                 all_ips = existing | {ip for _, ip in self.results}
                 
-                with open(p, "w") as f:
+                # نوشتن هر آی‌پی در یک خط مستقل و تمیز با کاراکتر انتهای خط (newline)
+                with open(path, "w", encoding="utf-8") as f:
                     for ip in sorted(all_ips):
-                        f.write(ip + "\n")
+                        f.write(ip.strip() + "\n")
                 
-                saved_path = p
+                saved_path = path
                 success = True
                 break
             except Exception:
                 continue
         
         if success:
-            self.show_popup("Saved Successfully ✓", f"{len(self.results)} IPs saved to:\n\n{saved_path}")
+            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to:\n\n{saved_path}")
         else:
-            self.show_popup("Error", "Could not save file!")
+            self.show_popup("Error", "Could not save file to Download folder!")
 
     def clear_results(self, *args):
         self.results = []
