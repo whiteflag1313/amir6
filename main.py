@@ -86,7 +86,7 @@ class IPRow(BoxLayout):
         self.rank = rank
 
         top_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(26), spacing=dp(6))
-        
+
         self.lbl_rank = Label(
             text=str(rank),
             size_hint_x=0.08,
@@ -120,12 +120,10 @@ class IPRow(BoxLayout):
         )
         btn_copy.bind(on_press=self.copy_ip)
         top_layout.add_widget(btn_copy)
-
         self.add_widget(top_layout)
 
         bottom_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(20))
         bottom_layout.add_widget(Label(text="", size_hint_x=0.08))
-        
         self.lbl_ping = Label(
             text=f"Ping: {ms:.0f} ms",
             size_hint_x=0.92,
@@ -137,7 +135,6 @@ class IPRow(BoxLayout):
         )
         self.lbl_ping.bind(size=self.lbl_ping.setter('text_size'))
         bottom_layout.add_widget(self.lbl_ping)
-        
         self.add_widget(bottom_layout)
 
     def get_ping_color(self, ms):
@@ -227,7 +224,7 @@ class Amir6App(App):
         scroll = ScrollView(do_scroll_x=False)
         self.results_layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(4), padding=[0, dp(4)])
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
-        
+
         for i in range(50):
             row = IPRow(i + 1, "—", 0)
             row.opacity = 0
@@ -243,6 +240,153 @@ class Amir6App(App):
 
         Clock.schedule_interval(self.flush_rows, 0.5)
         return root
+
+    # ── Storage helpers ────────────────────────────────────────────────────────
+
+    def _get_android_api(self):
+        try:
+            from jnius import autoclass
+            return autoclass('android.os.Build').VERSION.SDK_INT
+        except Exception:
+            return 0
+
+    def _request_legacy_permissions(self):
+        """Request WRITE/READ for Android ≤ 10."""
+        try:
+            from android.permissions import request_permissions, Permission
+            request_permissions([
+                Permission.WRITE_EXTERNAL_STORAGE,
+                Permission.READ_EXTERNAL_STORAGE,
+            ])
+        except Exception:
+            pass
+
+    def _has_manage_storage(self):
+        """Check MANAGE_EXTERNAL_STORAGE status (Android 11+)."""
+        try:
+            from jnius import autoclass
+            return autoclass('android.os.Environment').isExternalStorageManager()
+        except Exception:
+            return True  # non-Android or old API, assume fine
+
+    def _request_manage_storage(self):
+        """Open system settings for MANAGE_EXTERNAL_STORAGE (Android 11+)."""
+        try:
+            from jnius import autoclass
+            Intent   = autoclass('android.content.Intent')
+            Settings = autoclass('android.provider.Settings')
+            Uri      = autoclass('android.net.Uri')
+            PA       = autoclass('org.kivy.android.PythonActivity')
+            pkg      = PA.mActivity.getPackageName()
+            intent   = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+            intent.addCategory("android.intent.category.DEFAULT")
+            intent.setData(Uri.parse("package:" + pkg))
+            PA.mActivity.startActivity(intent)
+            return False   # user still has to grant it
+        except Exception:
+            return True    # couldn't open settings, try saving anyway
+
+    def _find_downloads_dir(self):
+        """Return the real Downloads path, testing write access."""
+        candidates = []
+
+        # 1. p4a android.storage module
+        try:
+            from android.storage import primary_external_storage_path
+            candidates.append(os.path.join(primary_external_storage_path(), "Download"))
+        except Exception:
+            pass
+
+        # 2. jnius Environment
+        try:
+            from jnius import autoclass
+            env = autoclass('android.os.Environment')
+            candidates.append(
+                env.getExternalStoragePublicDirectory(env.DIRECTORY_DOWNLOADS).getAbsolutePath()
+            )
+        except Exception:
+            pass
+
+        # 3. Well-known paths
+        candidates += [
+            "/storage/emulated/0/Download",
+            "/sdcard/Download",
+        ]
+
+        for d in candidates:
+            try:
+                os.makedirs(d, exist_ok=True)
+                probe = os.path.join(d, ".amir6_probe")
+                with open(probe, "w") as f:
+                    f.write("ok")
+                os.remove(probe)
+                return d           # first writable dir wins
+            except Exception:
+                continue
+
+        return None
+
+    # ── Save logic ─────────────────────────────────────────────────────────────
+
+    def save_results(self, *args):
+        if not self.results:
+            self.show_popup("Error", "No IPs to save!")
+            return
+
+        api = self._get_android_api()
+
+        if api >= 30:
+            # Android 11+ — need MANAGE_EXTERNAL_STORAGE
+            if not self._has_manage_storage():
+                granted = self._request_manage_storage()
+                if not granted:
+                    self.show_popup(
+                        "Permission Required",
+                        "Grant 'All Files Access' in Settings,\nthen press SAVE again."
+                    )
+                    return
+        elif api >= 23:
+            # Android 6–10 — runtime WRITE permission
+            self._request_legacy_permissions()
+
+        # Try to write to Downloads
+        dl_dir = self._find_downloads_dir()
+        if dl_dir:
+            target = os.path.join(dl_dir, "clean_ipv6.txt")
+            if self._write_ips(target):
+                self.show_popup("Saved ✓", f"{len(self.results)} IPs saved to:\n\n{target}")
+                return
+
+        # Last resort — internal app storage (always writable)
+        fallback = os.path.join(self.user_data_dir, "clean_ipv6.txt")
+        if self._write_ips(fallback):
+            self.show_popup(
+                "Saved (Internal Storage)",
+                f"{len(self.results)} IPs saved to:\n\n{fallback}\n\n"
+                "Grant 'All Files Access' permission for Downloads folder."
+            )
+        else:
+            self.show_popup("Error", "Could not write file to any location!")
+
+    def _write_ips(self, path):
+        """Merge existing IPs with new results and write. Returns True on success."""
+        try:
+            existing = set()
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        stripped = line.strip()
+                        if stripped:
+                            existing.add(stripped)
+            all_ips = existing | {ip for _, ip in self.results}
+            with open(path, "w", encoding="utf-8") as f:
+                for ip in sorted(all_ips):
+                    f.write(ip.strip() + "\n")
+            return True
+        except Exception:
+            return False
+
+    # ── Scan logic ─────────────────────────────────────────────────────────────
 
     def start_scan(self, *args):
         if self.running:
@@ -309,8 +453,8 @@ class Amir6App(App):
 
     def flush_rows(self, dt):
         with self.lock:
-            pct = (self.tested / self.total * 100) if self.total else 0
-            found = self.found
+            pct    = (self.tested / self.total * 100) if self.total else 0
+            found  = self.found
             tested = self.tested
             current = self.results[:50]
 
@@ -319,107 +463,45 @@ class Amir6App(App):
                 m, p = current[i]
                 row.update_data(i + 1, p, m)
                 row.opacity = 1
-                row.height = dp(52)
+                row.height  = dp(52)
             else:
                 row.opacity = 0
-                row.height = 0
+                row.height  = 0
 
         self.progress.value = min(pct, 100)
         self.lbl_status.text = f"Scanning... {tested}/{self.total}  |  Found: {found}"
         if self.results:
             best_ms, best_ip = self.results[0]
-            self.lbl_best.text = f"Best: [color=00ccff]{best_ip}[/color]  [color=00ff88]{best_ms:.0f}ms[/color]"
+            self.lbl_best.text = (
+                f"Best: [color=00ccff]{best_ip}[/color]  "
+                f"[color=00ff88]{best_ms:.0f}ms[/color]"
+            )
 
     def scan_done(self, *args):
         self.running = False
         self.btn_start.disabled = False
-        self.btn_stop.disabled = True
-        self.lbl_status.text = f"Finished — {self.found} clean IPs"
-        self.lbl_status.color = get_color_from_hex("#00ff88")
-        self.progress.value = 100
-
-    def save_results(self, *args):
-        if not self.results:
-            self.show_popup("Error", "No IPs to save!")
-            return
-        
-        path = ""
-        success = False
-        
-        # تلاش برای استفاده از API بومی اندروید جهت گرفتن پوشه واقعی Download
-        try:
-            from jnius import autoclass
-            Environment = autoclass('android.os.Environment')
-            download_dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath()
-            path = os.path.join(download_dir, "clean_ipv6.txt")
-        except Exception:
-            path = "/storage/emulated/0/Download/clean_ipv6.txt"
-
-        try:
-            folder = os.path.dirname(path)
-            if folder:
-                os.makedirs(folder, exist_ok=True)
-            
-            existing = set()
-            if os.path.exists(path):
-                try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        for l in f:
-                            clean_l = l.strip()
-                            if clean_l:
-                                existing.add(clean_l)
-                except Exception:
-                    pass
-            
-            all_ips = existing | {ip for _, ip in self.results}
-            
-            with open(path, "w", encoding="utf-8") as f:
-                for ip in sorted(all_ips):
-                    f.write(ip.strip() + "\n")
-            
-            success = True
-        except Exception:
-            success = False
-
-        # اگر پوشه عمومی دانلود به دلیل محدودیت اندروید مسدود بود، ذخیره در پوشه داخلی اپلیکیشن به عنوان پشتیبان قطعی
-        if not success:
-            try:
-                path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
-                existing = set()
-                if os.path.exists(path):
-                    with open(path, "r", encoding="utf-8") as f:
-                        for l in f:
-                            clean_l = l.strip()
-                            if clean_l:
-                                existing.add(clean_l)
-                all_ips = existing | {ip for _, ip in self.results}
-                with open(path, "w", encoding="utf-8") as f:
-                    for ip in sorted(all_ips):
-                        f.write(ip.strip() + "\n")
-                success = True
-            except Exception:
-                success = False
-
-        if success:
-            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to:\n\n{path}")
-        else:
-            self.show_popup("Error", "Could not save file!")
+        self.btn_stop.disabled  = True
+        self.lbl_status.text    = f"Finished — {self.found} clean IPs"
+        self.lbl_status.color   = get_color_from_hex("#00ff88")
+        self.progress.value     = 100
 
     def clear_results(self, *args):
         self.results = []
         for row in self.row_widgets:
             row.opacity = 0
-            row.height = 0
-        self.lbl_best.text = "Best: —"
-        self.lbl_status.text = "Cleared"
-        self.progress.value = 0
+            row.height  = 0
+        self.lbl_best.text    = "Best: —"
+        self.lbl_status.text  = "Cleared"
+        self.progress.value   = 0
 
     def show_popup(self, title, msg):
         content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
         content.add_widget(Label(text=msg, color=(1,1,1,1), font_size="13sp", halign="center"))
-        btn = Button(text="OK", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#005500"))
+        btn = Button(text="OK", size_hint_y=None, height=dp(42),
+                     background_color=get_color_from_hex("#005500"))
         content.add_widget(btn)
-        popup = Popup(title=title, content=content, size_hint=(0.88, 0.38), background_color=get_color_from_hex("#1a1a2e"))
+        popup = Popup(title=title, content=content, size_hint=(0.88, 0.44),
+                      background_color=get_color_from_hex("#1a1a2e"))
         btn.bind(on_press=popup.dismiss)
         popup.open()
 
