@@ -209,7 +209,7 @@ class Amir6App(App):
         self.btn_stop.bind(on_press=self.stop_scan)
         btn_row.add_widget(self.btn_stop)
         self.btn_save = Button(text="SAVE", background_color=get_color_from_hex("#003355"), color=get_color_from_hex("#00aaff"), bold=True, font_size="14sp")
-        self.btn_save.bind(on_press=self.prompt_save_location)
+        self.btn_save.bind(on_press=self.save_results)
         btn_row.add_widget(self.btn_save)
         self.btn_clear = Button(text="CLEAR", background_color=get_color_from_hex("#222222"), color=get_color_from_hex("#aaaaaa"), bold=True, font_size="14sp")
         self.btn_clear.bind(on_press=self.clear_results)
@@ -230,7 +230,6 @@ class Amir6App(App):
         self.results_layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(4), padding=[0, dp(4)])
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
         
-        # پیش‌ساختن 50 ویجت ردیف جهت حذف کامل لگ اسکرول و بهینه‌سازی سرعت
         for i in range(50):
             row = IPRow(i + 1, "—", 0)
             row.opacity = 0
@@ -341,68 +340,50 @@ class Amir6App(App):
         self.lbl_status.color = get_color_from_hex("#00ff88")
         self.progress.value = 100
 
-    def prompt_save_location(self, *args):
+    def save_results(self, *args):
         if not self.results:
             self.show_popup("Error", "No IPs to save!")
             return
         
-        content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
-        content.add_widget(Label(text="Select save location for IPs:", color=(1,1,1,1), font_size="13sp", halign="center"))
+        # ذخیره مستقیم و خودکار در پوشه Download در تمام گوشی‌ها
+        paths = [
+            "/storage/emulated/0/Download/clean_ipv6.txt",
+            "/sdcard/Download/clean_ipv6.txt",
+            "/storage/emulated/0/clean_ipv6.txt"
+        ]
         
-        btn_internal = Button(text="Internal Memory (App Folder)", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#003355"), color=get_color_from_hex("#00aaff"))
-        btn_external = Button(text="External Memory (Download Folder)", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#005500"), color=get_color_from_hex("#00ff88"))
-        
-        popup = Popup(title="Save Location", content=content, size_hint=(0.9, 0.45), background_color=get_color_from_hex("#1a1a2e"))
-        
-        def save_internal(*a):
-            popup.dismiss()
-            path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
-            self.save_to_path(path)
-            
-        def save_external(*a):
-            popup.dismiss()
-            paths = [
-                "/storage/emulated/0/Download/clean_ipv6.txt",
-                "/sdcard/Download/clean_ipv6.txt",
-                "/storage/emulated/0/clean_ipv6.txt"
-            ]
-            path = paths[0]
-            for p in paths:
-                try:
-                    folder = os.path.dirname(p)
-                    if folder:
-                        os.makedirs(folder, exist_ok=True)
-                    with open(p, "a") as f:
-                        pass
-                    path = p
-                    break
-                except Exception:
-                    continue
-            self.save_to_path(path)
-
-        btn_internal.bind(on_press=save_internal)
-        btn_external.bind(on_press=save_external)
-        
-        content.add_widget(btn_internal)
-        content.add_widget(btn_external)
-        popup.open()
-
-    def save_to_path(self, path):
-        existing = set()
-        if os.path.exists(path):
+        saved_path = paths[0]
+        success = False
+        for p in paths:
             try:
-                with open(path, "r") as f:
-                    existing = {l.strip() for l in f if l.strip()}
+                folder = os.path.dirname(p)
+                if folder:
+                    os.makedirs(folder, exist_ok=True)
+                
+                existing = set()
+                if os.path.exists(p):
+                    try:
+                        with open(p, "r") as f:
+                            existing = {l.strip() for l in f if l.strip()}
+                    except Exception:
+                        pass
+                
+                all_ips = existing | {ip for _, ip in self.results}
+                
+                with open(p, "w") as f:
+                    for ip in sorted(all_ips):
+                        f.write(ip + "\n")
+                
+                saved_path = p
+                success = True
+                break
             except Exception:
-                pass
-        all_ips = existing | {ip for _, ip in self.results}
-        try:
-            with open(path, "w") as f:
-                for ip in sorted(all_ips):
-                    f.write(ip + "\n")
-            self.show_popup("Saved ✓", f"{len(all_ips)} IPs saved to:\n\n{path}")
-        except Exception as e:
-            self.show_popup("Error", f"Could not save:\n{str(e)}")
+                continue
+        
+        if success:
+            self.show_popup("Saved Successfully ✓", f"{len(self.results)} IPs saved to:\n\n{saved_path}")
+        else:
+            self.show_popup("Error", "Could not save file to Download folder!")
 
     def clear_results(self, *args):
         self.results = []
