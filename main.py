@@ -343,28 +343,36 @@ class Amir6App(App):
             self.show_popup("Error", "No IPs to save!")
             return
         
-        # ذخیره ایمن در پوشه داخلی اپلیکیشن (تضمینی بدون خطای دسترسی اندروید)
+        # ساخت خودکار فایل متنی clean_ipv6.txt به صورت تفکیک‌شده و خط به خط
         path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
-        
         try:
-            existing = set()
-            if os.path.exists(path):
-                try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        for l in f:
-                            clean_l = l.strip()
-                            if clean_l:
-                                existing.add(clean_l)
-                except Exception:
-                    pass
-            
-            all_ips = existing | {ip for _, ip in self.results}
-            
             with open(path, "w", encoding="utf-8") as f:
-                for ip in sorted(all_ips):
+                for _, ip in self.results:
                     f.write(ip.strip() + "\n")
             
-            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to:\n\n{path}")
+            # باز کردن منوی اشتراک‌گذاری اندروید برای ذخیره آسان و دائمی در پوشه Download
+            try:
+                from jnius import autoclass
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                Intent = autoclass('android.content.Intent')
+                Uri = autoclass('android.net.Uri')
+                File = autoclass('java.io.File')
+                
+                file_obj = File(path)
+                uri = Uri.fromFile(file_obj)
+                
+                intent = Intent(Intent.ACTION_SEND)
+                intent.setType("text/plain")
+                intent.putExtra(Intent.EXTRA_STREAM, uri)
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                
+                currentActivity = PythonActivity.mActivity
+                chooser = Intent.createChooser(intent, "Save clean_ipv6.txt to Download")
+                currentActivity.startActivity(chooser)
+            except Exception:
+                pass
+
+            self.show_popup("Saved Successfully ✓", f"{len(self.results)} IPs saved!\n\nFile is ready. Choose 'Save to Files' / 'Download' from the popup menu.")
         except Exception as e:
             self.show_popup("Error", f"Could not save file:\n{str(e)}")
 
