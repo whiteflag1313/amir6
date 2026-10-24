@@ -38,15 +38,19 @@ def get_save_path():
     paths = [
         "/storage/emulated/0/Download/clean_ipv6.txt",
         "/sdcard/Download/clean_ipv6.txt",
-        os.path.expanduser("\~/clean_ipv6.txt"),
+        "/storage/emulated/0/clean_ipv6.txt",
+        os.path.join(os.path.expanduser("\~"), "clean_ipv6.txt"),
     ]
     for p in paths:
         try:
-            os.makedirs(os.path.dirname(p), exist_ok=True)
-            open(p, "a").close()
+            folder = os.path.dirname(p)
+            if folder:
+                os.makedirs(folder, exist_ok=True)
+            with open(p, "a") as f:
+                pass
             return p
-        except:
-            pass
+        except Exception:
+            continue
     return paths[-1]
 
 def rand_ip():
@@ -75,7 +79,7 @@ def ping_once(ip, timeout=4.0):
             if len(d) < 10:
                 return None
         return (time.monotonic() - t0) * 1000
-    except:
+    except Exception:
         return None
 
 def test_ip(ip, pcount=2):
@@ -220,7 +224,8 @@ class Amir6App(App):
         return root
 
     def start_scan(self, *args):
-        if self.running: return
+        if self.running:
+            return
         self.running = True
         self.results = []
         self.tested = 0
@@ -262,8 +267,10 @@ class Amir6App(App):
                 q.task_done()
 
         ts = [threading.Thread(target=worker, daemon=True) for _ in range(threads)]
-        for t in ts: t.start()
-        for t in ts: t.join()
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
         if self.running:
             Clock.schedule_once(self.scan_done, 0)
 
@@ -299,12 +306,19 @@ class Amir6App(App):
         path = get_save_path()
         existing = set()
         if os.path.exists(path):
-            existing = {l.strip() for l in open(path) if l.strip()}
+            try:
+                with open(path, "r") as f:
+                    existing = {l.strip() for l in f if l.strip()}
+            except Exception:
+                pass
         all_ips = existing | {ip for _, ip in self.results}
-        with open(path, "w") as f:
-            for ip in sorted(all_ips):
-                f.write(ip + "\n")
-        self.show_popup("Saved ✓", f"{len(all_ips)} IPs saved to:\n\n{path}")
+        try:
+            with open(path, "w") as f:
+                for ip in sorted(all_ips):
+                    f.write(ip + "\n")
+            self.show_popup("Saved ✓", f"{len(all_ips)} IPs saved to:\n\n{path}")
+        except Exception as e:
+            self.show_popup("Error", f"Could not save:\n{str(e)}")
 
     def clear_results(self, *args):
         self.results = []
