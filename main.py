@@ -343,47 +343,67 @@ class Amir6App(App):
             self.show_popup("Error", "No IPs to save!")
             return
         
-        paths = [
-            "/storage/emulated/0/Download/clean_ipv6.txt",
-            "/sdcard/Download/clean_ipv6.txt"
-        ]
-        
-        saved_path = paths[0]
+        path = ""
         success = False
-        for path in paths:
+        
+        # تلاش برای استفاده از API بومی اندروید جهت گرفتن پوشه واقعی Download
+        try:
+            from jnius import autoclass
+            Environment = autoclass('android.os.Environment')
+            download_dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath()
+            path = os.path.join(download_dir, "clean_ipv6.txt")
+        except Exception:
+            path = "/storage/emulated/0/Download/clean_ipv6.txt"
+
+        try:
+            folder = os.path.dirname(path)
+            if folder:
+                os.makedirs(folder, exist_ok=True)
+            
+            existing = set()
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        for l in f:
+                            clean_l = l.strip()
+                            if clean_l:
+                                existing.add(clean_l)
+                except Exception:
+                    pass
+            
+            all_ips = existing | {ip for _, ip in self.results}
+            
+            with open(path, "w", encoding="utf-8") as f:
+                for ip in sorted(all_ips):
+                    f.write(ip.strip() + "\n")
+            
+            success = True
+        except Exception:
+            success = False
+
+        # اگر پوشه عمومی دانلود به دلیل محدودیت اندروید مسدود بود، ذخیره در پوشه داخلی اپلیکیشن به عنوان پشتیبان قطعی
+        if not success:
             try:
-                folder = os.path.dirname(path)
-                if folder:
-                    os.makedirs(folder, exist_ok=True)
-                
+                path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
                 existing = set()
                 if os.path.exists(path):
-                    try:
-                        with open(path, "r", encoding="utf-8") as f:
-                            for l in f:
-                                clean_l = l.strip()
-                                if clean_l:
-                                    existing.add(clean_l)
-                    except Exception:
-                        pass
-                
+                    with open(path, "r", encoding="utf-8") as f:
+                        for l in f:
+                            clean_l = l.strip()
+                            if clean_l:
+                                existing.add(clean_l)
                 all_ips = existing | {ip for _, ip in self.results}
-                
-                # نوشتن هر آی‌پی در یک خط مستقل و تمیز با کاراکتر انتهای خط (newline)
                 with open(path, "w", encoding="utf-8") as f:
                     for ip in sorted(all_ips):
                         f.write(ip.strip() + "\n")
-                
-                saved_path = path
                 success = True
-                break
             except Exception:
-                continue
-        
+                success = False
+
         if success:
-            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to:\n\n{saved_path}")
+            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to:\n\n{path}")
         else:
-            self.show_popup("Error", "Could not save file to Download folder!")
+            self.show_popup("Error", "Could not save file!")
 
     def clear_results(self, *args):
         self.results = []
