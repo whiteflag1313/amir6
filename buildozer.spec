@@ -7,8 +7,8 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json,xml
 version = 0.1
 
-# هم python3 و هم hostpython3 رو به ۳.۱۱ پین کردیم
-requirements = python3==3.11,hostpython3==3.11,kivy==2.3.0,openssl,certifi
+# نسخه کامل و هم‌خوان
+requirements = python3==3.11.9,hostpython3==3.11.9,kivy==2.3.0,openssl,certifi
 
 orientation = portrait
 fullscreen = 0
@@ -20,7 +20,6 @@ android.ndk = 25c
 android.ndk_api = 21
 android.archs = arm64-v8a
 
-# از master استفاده کن
 p4a.branch = master
 
 [buildozer]
