@@ -88,35 +88,24 @@ class IPRow(BoxLayout):
         top_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(26), spacing=dp(6))
 
         self.lbl_rank = Label(
-            text=str(rank),
-            size_hint_x=0.08,
-            color=get_color_from_hex("#666666"),
-            font_size="12sp",
-            halign="center",
-            valign="middle"
+            text=str(rank), size_hint_x=0.08,
+            color=get_color_from_hex("#666666"), font_size="12sp",
+            halign="center", valign="middle"
         )
         top_layout.add_widget(self.lbl_rank)
 
         self.lbl_ip = Label(
-            text=ip,
-            size_hint_x=0.76,
-            color=get_color_from_hex("#00ccff"),
-            font_size="12sp",
-            halign="left",
-            valign="middle",
-            shorten=True,
-            shorten_from="right"
+            text=ip, size_hint_x=0.76,
+            color=get_color_from_hex("#00ccff"), font_size="12sp",
+            halign="left", valign="middle", shorten=True, shorten_from="right"
         )
         self.lbl_ip.bind(on_touch_down=self.copy_ip_touch)
         top_layout.add_widget(self.lbl_ip)
 
         btn_copy = Button(
-            text="COPY",
-            size_hint_x=0.16,
+            text="COPY", size_hint_x=0.16,
             background_color=get_color_from_hex("#1a1a2e"),
-            color=get_color_from_hex("#00ccff"),
-            font_size="10sp",
-            bold=True
+            color=get_color_from_hex("#00ccff"), font_size="10sp", bold=True
         )
         btn_copy.bind(on_press=self.copy_ip)
         top_layout.add_widget(btn_copy)
@@ -125,42 +114,32 @@ class IPRow(BoxLayout):
         bottom_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(20))
         bottom_layout.add_widget(Label(text="", size_hint_x=0.08))
         self.lbl_ping = Label(
-            text=f"Ping: {ms:.0f} ms",
-            size_hint_x=0.92,
-            color=self.get_ping_color(ms),
-            font_size="12sp",
-            bold=True,
-            halign="left",
-            valign="middle"
+            text=f"Ping: {ms:.0f} ms", size_hint_x=0.92,
+            color=self.get_ping_color(ms), font_size="12sp",
+            bold=True, halign="left", valign="middle"
         )
         self.lbl_ping.bind(size=self.lbl_ping.setter('text_size'))
         bottom_layout.add_widget(self.lbl_ping)
         self.add_widget(bottom_layout)
 
     def get_ping_color(self, ms):
-        if ms < 450:
-            return get_color_from_hex("#00ff88")
-        elif ms < 650:
-            return get_color_from_hex("#ffcc00")
-        else:
-            return get_color_from_hex("#ff4444")
+        if ms < 450:   return get_color_from_hex("#00ff88")
+        elif ms < 650: return get_color_from_hex("#ffcc00")
+        else:          return get_color_from_hex("#ff4444")
 
     def update_data(self, rank, ip, ms):
-        self.rank = rank
-        self.ip = ip
-        self.lbl_rank.text = str(rank)
-        self.lbl_ip.text = ip
-        self.lbl_ping.text = f"Ping: {ms:.0f} ms"
+        self.rank = rank; self.ip = ip
+        self.lbl_rank.text  = str(rank)
+        self.lbl_ip.text    = ip
+        self.lbl_ping.text  = f"Ping: {ms:.0f} ms"
         self.lbl_ping.color = self.get_ping_color(ms)
 
     def copy_ip(self, *args):
-        Clipboard.copy(self.ip)
-        return True
+        Clipboard.copy(self.ip); return True
 
     def copy_ip_touch(self, instance, touch):
         if self.lbl_ip.collide_point(*touch.pos):
-            Clipboard.copy(self.ip)
-            return True
+            Clipboard.copy(self.ip); return True
         return False
 
 
@@ -178,14 +157,10 @@ class Amir6App(App):
 
         root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
 
-        header = Label(
+        root.add_widget(Label(
             text="[b][color=00ccff]AMIR6[/color]  CF IPv6 Scanner[/b]",
-            markup=True,
-            size_hint_y=None,
-            height=dp(36),
-            font_size="16sp"
-        )
-        root.add_widget(header)
+            markup=True, size_hint_y=None, height=dp(36), font_size="16sp"
+        ))
 
         settings = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(6))
         settings.add_widget(Label(text="Count:", size_hint_x=0.22, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
@@ -227,21 +202,21 @@ class Amir6App(App):
 
         for i in range(50):
             row = IPRow(i + 1, "—", 0)
-            row.opacity = 0
-            row.height = 0
+            row.opacity = 0; row.height = 0
             self.row_widgets.append(row)
             self.results_layout.add_widget(row)
 
         scroll.add_widget(self.results_layout)
         root.add_widget(scroll)
 
-        self.lbl_best = Label(text="Best: —", color=get_color_from_hex("#00ff88"), size_hint_y=None, height=dp(28), font_size="12sp", markup=True)
+        self.lbl_best = Label(text="Best: —", color=get_color_from_hex("#00ff88"),
+                              size_hint_y=None, height=dp(28), font_size="12sp", markup=True)
         root.add_widget(self.lbl_best)
 
         Clock.schedule_interval(self.flush_rows, 0.5)
         return root
 
-    # ── Storage helpers ────────────────────────────────────────────────────────
+    # ── Storage ───────────────────────────────────────────────────────────────
 
     def _get_android_api(self):
         try:
@@ -250,155 +225,108 @@ class Amir6App(App):
         except Exception:
             return 0
 
-    def _request_legacy_permissions(self):
-        """Request WRITE/READ for Android ≤ 10."""
-        try:
-            from android.permissions import request_permissions, Permission
-            request_permissions([
-                Permission.WRITE_EXTERNAL_STORAGE,
-                Permission.READ_EXTERNAL_STORAGE,
-            ])
-        except Exception:
-            pass
-
-    def _has_manage_storage(self):
-        """Check MANAGE_EXTERNAL_STORAGE status (Android 11+)."""
+    def _mediastore_write(self, filename, text_content):
+        """
+        Android 10+ (API 29+): insert file into public Downloads via
+        MediaStore — zero extra permissions required.
+        """
         try:
             from jnius import autoclass
-            return autoclass('android.os.Environment').isExternalStorageManager()
-        except Exception:
-            return True  # non-Android or old API, assume fine
+            PA      = autoclass('org.kivy.android.PythonActivity')
+            CV      = autoclass('android.content.ContentValues')
+            Uri     = autoclass('android.net.Uri')
+            Integer = autoclass('java.lang.Integer')
+            JStr    = autoclass('java.lang.String')
 
-    def _request_manage_storage(self):
-        """Open system settings for MANAGE_EXTERNAL_STORAGE (Android 11+)."""
-        try:
-            from jnius import autoclass
-            Intent   = autoclass('android.content.Intent')
-            Settings = autoclass('android.provider.Settings')
-            Uri      = autoclass('android.net.Uri')
-            PA       = autoclass('org.kivy.android.PythonActivity')
-            pkg      = PA.mActivity.getPackageName()
-            intent   = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-            intent.addCategory("android.intent.category.DEFAULT")
-            intent.setData(Uri.parse("package:" + pkg))
-            PA.mActivity.startActivity(intent)
-            return False   # user still has to grant it
-        except Exception:
-            return True    # couldn't open settings, try saving anyway
+            ctx      = PA.mActivity
+            resolver = ctx.getContentResolver()
 
-    def _find_downloads_dir(self):
-        """Return the real Downloads path, testing write access."""
-        candidates = []
+            cv = CV()
+            cv.put("_display_name", filename)
+            cv.put("mime_type",     "text/plain")
+            cv.put("relative_path", "Download/")   # force into Downloads folder
+            cv.put("is_pending",    Integer(1))
 
-        # 1. p4a android.storage module
-        try:
-            from android.storage import primary_external_storage_path
-            candidates.append(os.path.join(primary_external_storage_path(), "Download"))
-        except Exception:
-            pass
+            col = Uri.parse("content://media/external/downloads")
+            uri = resolver.insert(col, cv)
+            if uri is None:
+                return False
 
-        # 2. jnius Environment
+            out = resolver.openOutputStream(uri)
+            out.write(JStr(text_content).getBytes("UTF-8"))
+            out.flush()
+            out.close()
+
+            cv2 = CV()
+            cv2.put("is_pending", Integer(0))      # make file visible in Files app
+            resolver.update(uri, cv2, None, None)
+            return True
+        except Exception as e:
+            print(f"[MediaStore] {e}")
+            return False
+
+    def _legacy_write(self, filename, text_content):
+        """Android 9 and below: direct file write after runtime permission."""
+        candidates = ["/storage/emulated/0/Download", "/sdcard/Download"]
         try:
             from jnius import autoclass
             env = autoclass('android.os.Environment')
-            candidates.append(
-                env.getExternalStoragePublicDirectory(env.DIRECTORY_DOWNLOADS).getAbsolutePath()
-            )
+            candidates.insert(0,
+                env.getExternalStoragePublicDirectory(
+                    env.DIRECTORY_DOWNLOADS).getAbsolutePath())
         except Exception:
             pass
-
-        # 3. Well-known paths
-        candidates += [
-            "/storage/emulated/0/Download",
-            "/sdcard/Download",
-        ]
 
         for d in candidates:
             try:
                 os.makedirs(d, exist_ok=True)
-                probe = os.path.join(d, ".amir6_probe")
-                with open(probe, "w") as f:
-                    f.write("ok")
-                os.remove(probe)
-                return d           # first writable dir wins
+                with open(os.path.join(d, filename), "w", encoding="utf-8") as f:
+                    f.write(text_content)
+                return True
             except Exception:
                 continue
-
-        return None
-
-    # ── Save logic ─────────────────────────────────────────────────────────────
+        return False
 
     def save_results(self, *args):
         if not self.results:
             self.show_popup("Error", "No IPs to save!")
             return
 
-        api = self._get_android_api()
+        filename = "clean_ipv6.txt"
+        ips_text = "\n".join(ip for _, ip in sorted(self.results)) + "\n"
+        api      = self._get_android_api()
 
-        if api >= 30:
-            # Android 11+ — need MANAGE_EXTERNAL_STORAGE
-            if not self._has_manage_storage():
-                granted = self._request_manage_storage()
-                if not granted:
-                    self.show_popup(
-                        "Permission Required",
-                        "Grant 'All Files Access' in Settings,\nthen press SAVE again."
-                    )
-                    return
-        elif api >= 23:
-            # Android 6–10 — runtime WRITE permission
-            self._request_legacy_permissions()
-
-        # Try to write to Downloads
-        dl_dir = self._find_downloads_dir()
-        if dl_dir:
-            target = os.path.join(dl_dir, "clean_ipv6.txt")
-            if self._write_ips(target):
-                self.show_popup("Saved ✓", f"{len(self.results)} IPs saved to:\n\n{target}")
-                return
-
-        # Last resort — internal app storage (always writable)
-        fallback = os.path.join(self.user_data_dir, "clean_ipv6.txt")
-        if self._write_ips(fallback):
-            self.show_popup(
-                "Saved (Internal Storage)",
-                f"{len(self.results)} IPs saved to:\n\n{fallback}\n\n"
-                "Grant 'All Files Access' permission for Downloads folder."
-            )
+        if api >= 29:
+            # Android 10+ — MediaStore, no special permission needed
+            ok = self._mediastore_write(filename, ips_text)
         else:
-            self.show_popup("Error", "Could not write file to any location!")
+            # Android 9 and below — request runtime permission first
+            try:
+                from android.permissions import request_permissions, Permission
+                request_permissions([
+                    Permission.WRITE_EXTERNAL_STORAGE,
+                    Permission.READ_EXTERNAL_STORAGE,
+                ])
+            except Exception:
+                pass
+            ok = self._legacy_write(filename, ips_text)
 
-    def _write_ips(self, path):
-        """Merge existing IPs with new results and write. Returns True on success."""
-        try:
-            existing = set()
-            if os.path.exists(path):
-                with open(path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        stripped = line.strip()
-                        if stripped:
-                            existing.add(stripped)
-            all_ips = existing | {ip for _, ip in self.results}
-            with open(path, "w", encoding="utf-8") as f:
-                for ip in sorted(all_ips):
-                    f.write(ip.strip() + "\n")
-            return True
-        except Exception:
-            return False
+        if ok:
+            self.show_popup("Saved ✓",
+                            f"{len(self.results)} IPs saved to:\n\nDownloads/{filename}")
+        else:
+            self.show_popup("Save Failed",
+                            "Could not write to Downloads!\nCheck storage permissions.")
 
-    # ── Scan logic ─────────────────────────────────────────────────────────────
+    # ── Scan ──────────────────────────────────────────────────────────────────
 
     def start_scan(self, *args):
-        if self.running:
-            return
+        if self.running: return
         self.running = True
-        self.results = []
-        self.tested = 0
-        self.found = 0
+        self.results = []; self.tested = 0; self.found = 0
         self.total = int(self.spin_count.text)
         self.progress.value = 0
-        self.btn_start.disabled = True
-        self.btn_stop.disabled = False
+        self.btn_start.disabled = True; self.btn_stop.disabled = False
         self.lbl_status.color = get_color_from_hex("#00ccff")
         threading.Thread(target=self.scan_worker, daemon=True).start()
 
@@ -406,35 +334,24 @@ class Amir6App(App):
         self.running = False
         if self.q:
             while not self.q.empty():
-                try:
-                    self.q.get_nowait()
-                    self.q.task_done()
-                except Exception:
-                    break
-        self.btn_start.disabled = False
-        self.btn_stop.disabled = True
-        self.lbl_status.text = f"Stopped — {self.found} IPs"
+                try: self.q.get_nowait(); self.q.task_done()
+                except Exception: break
+        self.btn_start.disabled = False; self.btn_stop.disabled = True
+        self.lbl_status.text  = f"Stopped — {self.found} IPs"
         self.lbl_status.color = get_color_from_hex("#ffcc00")
 
     def scan_worker(self):
         self.q = Queue()
-        for _ in range(self.total):
-            self.q.put(rand_ip())
+        for _ in range(self.total): self.q.put(rand_ip())
         threads = int(self.spin_threads.text)
 
         def worker():
             while self.running:
-                try:
-                    ip = self.q.get(timeout=0.5)
-                except Empty:
-                    break
-                if not self.running:
-                    self.q.task_done()
-                    break
+                try: ip = self.q.get(timeout=0.5)
+                except Empty: break
+                if not self.running: self.q.task_done(); break
                 ms = test_ip(ip)
-                if not self.running:
-                    self.q.task_done()
-                    break
+                if not self.running: self.q.task_done(); break
                 with self.lock:
                     self.tested += 1
                     if ms is not None:
@@ -444,55 +361,44 @@ class Amir6App(App):
                 self.q.task_done()
 
         ts = [threading.Thread(target=worker, daemon=True) for _ in range(threads)]
-        for t in ts:
-            t.start()
-        for t in ts:
-            t.join()
-        if self.running:
-            Clock.schedule_once(self.scan_done, 0)
+        for t in ts: t.start()
+        for t in ts: t.join()
+        if self.running: Clock.schedule_once(self.scan_done, 0)
 
     def flush_rows(self, dt):
         with self.lock:
-            pct    = (self.tested / self.total * 100) if self.total else 0
-            found  = self.found
-            tested = self.tested
+            pct     = (self.tested / self.total * 100) if self.total else 0
+            found   = self.found; tested = self.tested
             current = self.results[:50]
 
         for i, row in enumerate(self.row_widgets):
             if i < len(current):
                 m, p = current[i]
                 row.update_data(i + 1, p, m)
-                row.opacity = 1
-                row.height  = dp(52)
+                row.opacity = 1; row.height = dp(52)
             else:
-                row.opacity = 0
-                row.height  = 0
+                row.opacity = 0; row.height = 0
 
-        self.progress.value = min(pct, 100)
+        self.progress.value  = min(pct, 100)
         self.lbl_status.text = f"Scanning... {tested}/{self.total}  |  Found: {found}"
         if self.results:
-            best_ms, best_ip = self.results[0]
-            self.lbl_best.text = (
-                f"Best: [color=00ccff]{best_ip}[/color]  "
-                f"[color=00ff88]{best_ms:.0f}ms[/color]"
-            )
+            bm, bi = self.results[0]
+            self.lbl_best.text = (f"Best: [color=00ccff]{bi}[/color]  "
+                                  f"[color=00ff88]{bm:.0f}ms[/color]")
 
     def scan_done(self, *args):
         self.running = False
-        self.btn_start.disabled = False
-        self.btn_stop.disabled  = True
+        self.btn_start.disabled = False; self.btn_stop.disabled = True
         self.lbl_status.text    = f"Finished — {self.found} clean IPs"
         self.lbl_status.color   = get_color_from_hex("#00ff88")
         self.progress.value     = 100
 
     def clear_results(self, *args):
         self.results = []
-        for row in self.row_widgets:
-            row.opacity = 0
-            row.height  = 0
-        self.lbl_best.text    = "Best: —"
-        self.lbl_status.text  = "Cleared"
-        self.progress.value   = 0
+        for row in self.row_widgets: row.opacity = 0; row.height = 0
+        self.lbl_best.text   = "Best: —"
+        self.lbl_status.text = "Cleared"
+        self.progress.value  = 0
 
     def show_popup(self, title, msg):
         content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
