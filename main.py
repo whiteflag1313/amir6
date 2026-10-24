@@ -389,18 +389,23 @@ class Amir6App(App):
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             Environment = autoclass('android.os.Environment')
             ContentValues = autoclass('android.content.ContentValues')
-            MediaStore_Downloads = autoclass('android.provider.MediaStore$Downloads')
+            MediaStore = autoclass('android.provider.MediaStore')
 
             activity = PythonActivity.mActivity
             context = activity.getApplicationContext()
             resolver = context.getContentResolver()
 
             values = ContentValues()
-            values.put(MediaStore_Downloads.DISPLAY_NAME, "clean_ipv6.txt")
-            values.put(MediaStore_Downloads.MIME_TYPE, "text/plain")
-            values.put(MediaStore_Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            values.put("_display_name", "clean_ipv6.txt")
+            values.put("mime_type", "text/plain")
+            values.put("relative_path", Environment.DIRECTORY_DOWNLOADS)
 
-            uri = resolver.insert(MediaStore_Downloads.EXTERNAL_CONTENT_URI, values)
+            collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+            uri = resolver.insert(collection, values)
+
+            if uri is None:
+                collection = MediaStore.Files.getContentUri("external")
+                uri = resolver.insert(collection, values)
 
             if uri is not None:
                 stream = resolver.openOutputStream(uri)
@@ -412,17 +417,28 @@ class Amir6App(App):
                     success = True
         except Exception as e:
             error_detail = str(e)
-            print("MediaStore error:", error_detail)
+            print("Save error:", error_detail)
+
+        if not success:
+            try:
+                path = "/storage/emulated/0/Download/clean_ipv6.txt"
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(ip_text)
+                saved_path = path
+                success = True
+            except Exception as e2:
+                error_detail += f"\nDirect write: {str(e2)}"
 
         if success:
             self.show_popup(
                 "Saved Successfully",
-                f"{len(self.results)} IPs saved to Internal Storage:\n\n{saved_path}\n\n(Also copied to clipboard)"
+                f"{len(self.results)} IPs saved!\n\n{saved_path}\n\n(Also copied to clipboard)"
             )
         else:
             self.show_popup(
                 "Error",
-                f"Could not save to Download folder!\n\n{error_detail}\n\nIPs are in clipboard."
+                f"Could not save to Download folder!\n\n{error_detail}\n\nIPs are in clipboard. You can paste them."
             )
 
     def clear_results(self, *args):
@@ -436,7 +452,8 @@ class Amir6App(App):
 
     def show_popup(self, title, msg):
         content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
-        content.add_widget(Label(text=msg, color=(1,1,1,1), font_size="13sp", halign="center"))
+        content.add_widget(Label(text=msg, color=(1,1,1,1), font_size="13sp",
+halign="center"))
         btn = Button(text="OK", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#005500"))
         content.add_widget(btn)
         popup = Popup(title=title, content=content, size_hint=(0.88, 0.38), background_color=get_color_from_hex("#1a1a2e"))
