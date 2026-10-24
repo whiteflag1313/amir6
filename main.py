@@ -345,14 +345,14 @@ class Amir6App(App):
             self.show_popup("Error", "No IPs to save!")
             return
         
-        # ذخیره مستقیم و خودکار در پوشه Download در تمام گوشی‌ها
+        # لیست مسیرهای احتمالی برای ذخیره (تلاش برای پوشه دانلود و پشتیبان حافظه داخلی برنامه)
         paths = [
             "/storage/emulated/0/Download/clean_ipv6.txt",
             "/sdcard/Download/clean_ipv6.txt",
-            "/storage/emulated/0/clean_ipv6.txt"
+            os.path.join(self.user_data_dir, "clean_ipv6.txt")
         ]
         
-        saved_path = paths[0]
+        saved_path = ""
         success = False
         for p in paths:
             try:
@@ -383,7 +383,7 @@ class Amir6App(App):
         if success:
             self.show_popup("Saved Successfully ✓", f"{len(self.results)} IPs saved to:\n\n{saved_path}")
         else:
-            self.show_popup("Error", "Could not save file to Download folder!")
+            self.show_popup("Error", "Could not save file!")
 
     def clear_results(self, *args):
         self.results = []
