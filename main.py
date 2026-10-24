@@ -34,25 +34,6 @@ CF_SUBNETS = [
     "2606:4700:300::/48","2606:4700:4700::/48",
 ]
 
-def get_save_path():
-    paths = [
-        "/storage/emulated/0/Download/clean_ipv6.txt",
-        "/sdcard/Download/clean_ipv6.txt",
-        "/storage/emulated/0/clean_ipv6.txt",
-        os.path.join(os.path.expanduser("\~"), "clean_ipv6.txt"),
-    ]
-    for p in paths:
-        try:
-            folder = os.path.dirname(p)
-            if folder:
-                os.makedirs(folder, exist_ok=True)
-            with open(p, "a") as f:
-                pass
-            return p
-        except Exception:
-            continue
-    return paths[-1]
-
 def rand_ip():
     net = ipaddress.IPv6Network(random.choice(CF_SUBNETS), strict=False)
     n = int(net.num_addresses)
@@ -96,11 +77,11 @@ def test_ip(ip, pcount=2):
 class IPRow(BoxLayout):
     def __init__(self, rank, ip, ms, **kwargs):
         super().__init__(**kwargs)
-        self.orientation = "horizontal"
+        self.orientation = "vertical"
         self.size_hint_y = None
-        self.height = dp(42)
-        self.padding = [dp(8), dp(4)]
-        self.spacing = dp(6)
+        self.height = dp(52)
+        self.padding = [dp(6), dp(2)]
+        self.spacing = dp(2)
         self.ip = ip
 
         if ms < 450:
@@ -110,7 +91,10 @@ class IPRow(BoxLayout):
         else:
             color = get_color_from_hex("#ff4444")
 
-        self.add_widget(Label(
+        # خط بالا: رتبه، آی‌پی و دکمه کپی
+        top_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(26), spacing=dp(6))
+        
+        top_layout.add_widget(Label(
             text=str(rank),
             size_hint_x=0.08,
             color=get_color_from_hex("#666666"),
@@ -121,7 +105,7 @@ class IPRow(BoxLayout):
 
         ip_label = Label(
             text=ip,
-            size_hint_x=0.62,
+            size_hint_x=0.76,
             color=get_color_from_hex("#00ccff"),
             font_size="12sp",
             halign="left",
@@ -130,26 +114,38 @@ class IPRow(BoxLayout):
             shorten_from="right"
         )
         ip_label.bind(on_touch_down=self.copy_ip)
-        self.add_widget(ip_label)
-
-        self.add_widget(Label(
-            text=f"{ms:.0f} ms",
-            size_hint_x=0.22,
-            color=color,
-            font_size="13sp",
-            bold=True,
-            halign="right",
-            valign="middle"
-        ))
+        top_layout.add_widget(ip_label)
 
         btn_copy = Button(
-            text="📋",
-            size_hint_x=0.08,
+            text="COPY",
+            size_hint_x=0.16,
             background_color=get_color_from_hex("#1a1a2e"),
-            font_size="14sp"
+            color=get_color_from_hex("#00ccff"),
+            font_size="10sp",
+            bold=True
         )
         btn_copy.bind(on_press=self.copy_ip)
-        self.add_widget(btn_copy)
+        top_layout.add_widget(btn_copy)
+
+        self.add_widget(top_layout)
+
+        # خط پایین: نمایش عدد پینگ زیر آی‌پی
+        bottom_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(20))
+        bottom_layout.add_widget(Label(text="", size_hint_x=0.08))
+        
+        ping_label = Label(
+            text=f"Ping: {ms:.0f} ms",
+            size_hint_x=0.92,
+            color=color,
+            font_size="12sp",
+            bold=True,
+            halign="left",
+            valign="middle"
+        )
+        ping_label.bind(size=ping_label.setter('text_size'))
+        bottom_layout.add_widget(ping_label)
+        
+        self.add_widget(bottom_layout)
 
     def copy_ip(self, *args):
         Clipboard.copy(self.ip)
@@ -165,6 +161,7 @@ class Amir6App(App):
         self.found = 0
         self.total = 0
         self.lock = threading.Lock()
+        self.q = None
 
         root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
 
@@ -194,7 +191,7 @@ class Amir6App(App):
         self.btn_stop.bind(on_press=self.stop_scan)
         btn_row.add_widget(self.btn_stop)
         self.btn_save = Button(text="SAVE", background_color=get_color_from_hex("#003355"), color=get_color_from_hex("#00aaff"), bold=True, font_size="14sp")
-        self.btn_save.bind(on_press=self.save_results)
+        self.btn_save.bind(on_press=self.prompt_save_location)
         btn_row.add_widget(self.btn_save)
         self.btn_clear = Button(text="CLEAR", background_color=get_color_from_hex("#222222"), color=get_color_from_hex("#aaaaaa"), bold=True, font_size="14sp")
         self.btn_clear.bind(on_press=self.clear_results)
@@ -207,12 +204,12 @@ class Amir6App(App):
         root.add_widget(self.lbl_status)
 
         root.add_widget(Label(
-            text="[color=00ff88]<450ms[/color]    [color=ffcc00]<650ms[/color]    [color=ff4444]>650ms[/color]    (tap IP or 📋 to copy)",
+            text="[color=00ff88]<450ms[/color]    [color=ffcc00]<650ms[/color]    [color=ff4444]>650ms[/color]    (tap IP or COPY)",
             markup=True, size_hint_y=None, height=dp(22), font_size="11sp"
         ))
 
         scroll = ScrollView(do_scroll_x=False)
-        self.results_layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(3), padding=[0, dp(4)])
+        self.results_layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(4), padding=[0, dp(4)])
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
         scroll.add_widget(self.results_layout)
         root.add_widget(scroll)
@@ -240,31 +237,44 @@ class Amir6App(App):
 
     def stop_scan(self, *args):
         self.running = False
+        if self.q:
+            while not self.q.empty():
+                try:
+                    self.q.get_nowait()
+                    self.q.task_done()
+                except Exception:
+                    break
         self.btn_start.disabled = False
         self.btn_stop.disabled = True
         self.lbl_status.text = f"Stopped — {self.found} IPs"
         self.lbl_status.color = get_color_from_hex("#ffcc00")
 
     def scan_worker(self):
-        q = Queue()
+        self.q = Queue()
         for _ in range(self.total):
-            q.put(rand_ip())
+            self.q.put(rand_ip())
         threads = int(self.spin_threads.text)
 
         def worker():
             while self.running:
                 try:
-                    ip = q.get(timeout=1)
+                    ip = self.q.get(timeout=0.5)
                 except Empty:
                     break
+                if not self.running:
+                    self.q.task_done()
+                    break
                 ms = test_ip(ip)
+                if not self.running:
+                    self.q.task_done()
+                    break
                 with self.lock:
                     self.tested += 1
                     if ms is not None:
                         self.found += 1
                         self.results.append((ms, ip))
                         self.results.sort()
-                q.task_done()
+                self.q.task_done()
 
         ts = [threading.Thread(target=worker, daemon=True) for _ in range(threads)]
         for t in ts:
@@ -299,11 +309,53 @@ class Amir6App(App):
         self.lbl_status.color = get_color_from_hex("#00ff88")
         self.progress.value = 100
 
-    def save_results(self, *args):
+    def prompt_save_location(self, *args):
         if not self.results:
             self.show_popup("Error", "No IPs to save!")
             return
-        path = get_save_path()
+        
+        content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
+        content.add_widget(Label(text="انتخاب محل ذخیره سازی آی‌پی‌ها:", color=(1,1,1,1), font_size="13sp", halign="center"))
+        
+        btn_internal = Button(text="حافظه داخلی (پوشه اختصاصی برنامه)", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#003355"), color=get_color_from_hex("#00aaff"))
+        btn_external = Button(text="حافظه خارجی (پوشه Download)", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#005500"), color=get_color_from_hex("#00ff88"))
+        
+        popup = Popup(title="Save Location", content=content, size_hint=(0.9, 0.45), background_color=get_color_from_hex("#1a1a2e"))
+        
+        def save_internal(*a):
+            popup.dismiss()
+            path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
+            self.save_to_path(path)
+            
+        def save_external(*a):
+            popup.dismiss()
+            paths = [
+                "/storage/emulated/0/Download/clean_ipv6.txt",
+                "/sdcard/Download/clean_ipv6.txt",
+                "/storage/emulated/0/clean_ipv6.txt"
+            ]
+            path = paths[0]
+            for p in paths:
+                try:
+                    folder = os.path.dirname(p)
+                    if folder:
+                        os.makedirs(folder, exist_ok=True)
+                    with open(p, "a") as f:
+                        pass
+                    path = p
+                    break
+                except Exception:
+                    continue
+            self.save_to_path(path)
+
+        btn_internal.bind(on_press=save_internal)
+        btn_external.bind(on_press=save_external)
+        
+        content.add_widget(btn_internal)
+        content.add_widget(btn_external)
+        popup.open()
+
+    def save_to_path(self, path):
         existing = set()
         if os.path.exists(path):
             try:
