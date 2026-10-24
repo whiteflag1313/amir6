@@ -17,7 +17,7 @@ jobs:
             suffix: arm64
           - arch: armeabi-v7a
             suffix: v7a
-          - arch: arm64-v8a, armeabi-v7a
+          - arch: arm64-v8a
             suffix: universal
 
     steps:
@@ -54,11 +54,9 @@ jobs:
         mkdir -p $SDK_DIR
         cd $SDK_DIR
 
-        # Download commandlinetools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
         unzip -q tools.zip
 
-        # Fix structure
         mkdir -p cmdline-tools
         if [ -d "cmdline-tools" ] && [ ! -d "cmdline-tools/latest" ]; then
           mv cmdline-tools cmdline-tools_temp 2>/dev/null || true
@@ -91,7 +89,8 @@ jobs:
 
     - name: Update Architecture in buildozer.spec
       run: |
-        sed -i 's/^android.archs.*/android.archs = ${{ matrix.arch }}/' buildozer.spec
+        ARCH_VAL="${{ matrix.arch }}"
+        sed -i "s/^android.archs.*/android.archs = $ARCH_VAL/" buildozer.spec
 
     - name: Build APK
       run: |
