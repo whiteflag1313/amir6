@@ -8,109 +8,142 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 80
+    timeout-minutes: 100
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch_label: arm7
+            arch_spec: "armeabi-v7a"
+          - arch_label: arm8
+            arch_spec: "arm64-v8a"
+          - arch_label: universal
+            arch_spec: "armeabi-v7a, arm64-v8a"
 
     steps:
     - uses: actions/checkout@v4
 
+    # ── Patch buildozer.spec with the right arch ──────────────────────────────
+    - name: Set android.archs in buildozer.spec
+      env:
+        ARCH_SPEC: ${{ matrix.arch_spec }}
+      run: |
+        python3 - <<'EOF'
+        import os, re
+        arch = os.environ["ARCH_SPEC"]
+        spec = open("buildozer.spec").read()
+        spec = re.sub(r"^android\.archs\s*=.*", f"android.archs = {arch}", spec, flags=re.MULTILINE)
+        open("buildozer.spec", "w").write(spec)
+        print(f"[✓] android.archs set to: {arch}")
+        EOF
+
+    # ── Java ──────────────────────────────────────────────────────────────────
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        distribution: 'temurin'
+        distribution: temurin
         java-version: '17'
 
-    - name: Set up Python
+    # ── Python ───────────────────────────────────────────────────────────────
+    - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
+    # ── System deps ──────────────────────────────────────────────────────────
     - name: Install system dependencies
       run: |
-        sudo apt-get update
+        sudo apt-get update -qq
         sudo apt-get install -y \
           git zip unzip \
           autoconf libtool pkg-config \
           zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 \
           cmake libffi-dev libssl-dev libltdl-dev wget
 
-    - name: Install Python packages
+    # ── Python packages ──────────────────────────────────────────────────────
+    - name: Install buildozer & cython
       run: |
         pip install --upgrade pip
         pip install buildozer cython==0.29.36
 
+    # ── Cache Android SDK/NDK/p4a ────────────────────────────────────────────
+    - name: Cache buildozer global dir
+      uses: actions/cache@v4
+      with:
+        path: ~/.buildozer
+        key: buildozer-${{ matrix.arch_label }}-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          buildozer-${{ matrix.arch_label }}-
+          buildozer-
+
+    # ── Android SDK setup ────────────────────────────────────────────────────
     - name: Setup Android SDK
       run: |
         SDK_DIR=$HOME/.buildozer/android/platform/android-sdk
-        mkdir -p $SDK_DIR
-        cd $SDK_DIR
+        mkdir -p "$SDK_DIR"
+        cd "$SDK_DIR"
 
-        # Download commandlinetools
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-        unzip -q tools.zip
-
-        # Fix structure
-        mkdir -p cmdline-tools
-        if [ -d "cmdline-tools" ] && [ ! -d "cmdline-tools/latest" ]; then
-          mv cmdline-tools cmdline-tools_temp 2>/dev/null || true
-          mkdir -p cmdline-tools
-          mv cmdline-tools_temp cmdline-tools/latest 2>/dev/null || true
-        fi
-
-        # If still wrong, try another way
         if [ ! -f "cmdline-tools/latest/bin/sdkmanager" ]; then
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+          unzip -q tools.zip -d cmdline-tools_tmp
           mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-          # Move the actual content
-          if [ -d "cmdline-tools/bin" ]; then
-            mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-          fi
+          mv cmdline-tools_tmp/cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || \
+            mv cmdline-tools_tmp/*              cmdline-tools/latest/
+          rm -rf cmdline-tools_tmp tools.zip
         fi
 
-        # Create old tools structure that Buildozer desperately wants
+        # Symlink for old Buildozer SDK-path detection
         mkdir -p tools/bin
-        if [ -f "cmdline-tools/latest/bin/sdkmanager" ]; then
-          ln -sf $SDK_DIR/cmdline-tools/latest/bin/sdkmanager tools/bin/sdkmanager
-          ln -sf $SDK_DIR/cmdline-tools/latest/bin/avdmanager tools/bin/avdmanager 2>/dev/null || true
-          chmod +x tools/bin/sdkmanager
-        fi
+        ln -sf "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" tools/bin/sdkmanager 2>/dev/null || true
 
-        export ANDROID_HOME=$SDK_DIR
-        export PATH=$PATH:$SDK_DIR/cmdline-tools/latest/bin:$SDK_DIR/tools/bin
+        export ANDROID_HOME="$SDK_DIR"
+        export PATH="$PATH:$SDK_DIR/cmdline-tools/latest/bin"
 
-        echo "=== Checking sdkmanager ==="
-        ls -la $SDK_DIR/tools/bin/ || true
-        ls -la $SDK_DIR/cmdline-tools/latest/bin/ || true
-        which sdkmanager || true
+        yes | sdkmanager --licenses > /dev/null 2>&1 || true
+        sdkmanager \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;33.0.2" \
+          "ndk;25.2.9519653" || true
 
-        # Accept licenses
-        yes | sdkmanager --licenses || true
-        yes | sdkmanager --licenses || true
-
-        # Install packages
-        sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653" || true
-
-        echo "=== Final check ==="
-        ls -la $SDK_DIR/build-tools/ || true
-        ls -la $SDK_DIR/tools/bin/sdkmanager || true
-
-    - name: Build APK
+    # ── Build ─────────────────────────────────────────────────────────────────
+    - name: Build APK (${{ matrix.arch_label }})
       run: |
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools
+        SDK_DIR=$HOME/.buildozer/android/platform/android-sdk
+        export ANDROID_HOME="$SDK_DIR"
+        export PATH="$PATH:$SDK_DIR/cmdline-tools/latest/bin:$SDK_DIR/platform-tools"
 
-        for dir in $ANDROID_HOME/build-tools/*; do
-          if [ -d "$dir" ]; then
-            export PATH=$PATH:$dir
-            echo "Using build-tools: $dir"
-            break
-          fi
+        for d in "$SDK_DIR/build-tools"/*/; do
+          export PATH="$PATH:$d"
+          break
         done
 
-        buildozer -v android debug
+        buildozer -v android debug 2>&1
 
-    - name: Upload APK
+    # ── Rename APK(s) ────────────────────────────────────────────────────────
+    - name: Rename APK(s)
+      run: |
+        mkdir -p artifacts
+        count=0
+        for f in bin/*.apk; do
+          [ -f "$f" ] || continue
+          count=$((count + 1))
+          if [ "$count" -eq 1 ]; then
+            cp "$f" "artifacts/amir6-${{ matrix.arch_label }}.apk"
+          else
+            # universal build may produce 2 separate arch APKs — keep both
+            basename=$(basename "$f" .apk)
+            cp "$f" "artifacts/amir6-${{ matrix.arch_label }}-${basename}.apk"
+          fi
+        done
+        echo "APKs in artifacts/:"
+        ls -lh artifacts/
+
+    # ── Upload ────────────────────────────────────────────────────────────────
+    - name: Upload APK (${{ matrix.arch_label }})
       uses: actions/upload-artifact@v4
       with:
-        name: amir6-apk
-        path: bin/*.apk
-        if-no-files-found: warn
+        name: amir6-${{ matrix.arch_label }}
+        path: artifacts/*.apk
+        if-no-files-found: error
