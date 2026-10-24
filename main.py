@@ -343,38 +343,19 @@ class Amir6App(App):
             self.show_popup("Error", "No IPs to save!")
             return
         
-        # ساخت خودکار فایل متنی clean_ipv6.txt به صورت تفکیک‌شده و خط به خط
+        # تهیه متن تفکیک‌شده و خط‌به‌خط برای کپی خودکار و ذخیره
+        ip_text = "\n".join([ip for _, ip in self.results])
+        Clipboard.copy(ip_text)
+        
+        # تلاش برای ذخیره در حافظه داخلی برنامه
         path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
         try:
             with open(path, "w", encoding="utf-8") as f:
-                for _, ip in self.results:
-                    f.write(ip.strip() + "\n")
+                f.write(ip_text + "\n")
             
-            # باز کردن منوی اشتراک‌گذاری اندروید برای ذخیره آسان و دائمی در پوشه Download
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                Intent = autoclass('android.content.Intent')
-                Uri = autoclass('android.net.Uri')
-                File = autoclass('java.io.File')
-                
-                file_obj = File(path)
-                uri = Uri.fromFile(file_obj)
-                
-                intent = Intent(Intent.ACTION_SEND)
-                intent.setType("text/plain")
-                intent.putExtra(Intent.EXTRA_STREAM, uri)
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                
-                currentActivity = PythonActivity.mActivity
-                chooser = Intent.createChooser(intent, "Save clean_ipv6.txt to Download")
-                currentActivity.startActivity(chooser)
-            except Exception:
-                pass
-
-            self.show_popup("Saved Successfully ✓", f"{len(self.results)} IPs saved!\n\nFile is ready. Choose 'Save to Files' / 'Download' from the popup menu.")
+            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved & copied to clipboard!\n\nPath:\n{path}")
         except Exception as e:
-            self.show_popup("Error", f"Could not save file:\n{str(e)}")
+            self.show_popup("Copied to Clipboard", f"{len(self.results)} IPs copied to clipboard successfully!")
 
     def clear_results(self, *args):
         self.results = []
