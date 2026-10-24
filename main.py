@@ -375,56 +375,55 @@ class Amir6App(App):
         if not self.results:
             self.show_popup("Error", "No IPs to save!")
             return
-        
+
         ip_text = "\n".join([ip for _, ip in self.results]) + "\n"
         Clipboard.copy(ip_text)
 
-        saved_path = ""
         success = False
+        saved_path = ""
+        error_detail = ""
 
-        # روش اول: نوشتن مستقیم در پوشه Download حافظه داخلی
         try:
-            download_path = "/storage/emulated/0/Download/clean_ipv6.txt"
-            os.makedirs(os.path.dirname(download_path), exist_ok=True)
-            with open(download_path, "w", encoding="utf-8") as f:
-                f.write(ip_text)
-            saved_path = download_path
-            success = True
-        except Exception as e:
-            print("Direct storage error:", e)
+            from jnius import autoclass
 
-        # روش دوم: استفاده از MediaStore اندروید به عنوان پشتیبان
-        if not success:
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                ContentValues = autoclass('android.content.ContentValues')
-                MediaStore_Downloads = autoclass('android.provider.MediaStore$Downloads')
-                Environment = autoclass('android.os.Environment')
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Environment = autoclass('android.os.Environment')
+            ContentValues = autoclass('android.content.ContentValues')
+            MediaStore_Downloads = autoclass('android.provider.MediaStore$Downloads')
 
-                activity = PythonActivity.mActivity
-                context = activity.getApplicationContext()
-                resolver = context.getContentResolver()
+            activity = PythonActivity.mActivity
+            context = activity.getApplicationContext()
+            resolver = context.getContentResolver()
 
-                values = ContentValues()
-                values.put(MediaStore_Downloads.DISPLAY_NAME, "clean_ipv6.txt")
-                values.put(MediaStore_Downloads.MIME_TYPE, "text/plain")
-                values.put(MediaStore_Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            values = ContentValues()
+            values.put(MediaStore_Downloads.DISPLAY_NAME, "clean_ipv6.txt")
+            values.put(MediaStore_Downloads.MIME_TYPE, "text/plain")
+            values.put(MediaStore_Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
 
-                uri = resolver.insert(MediaStore_Downloads.EXTERNAL_CONTENT_URI, values)
-                if uri is not None:
-                    stream = resolver.openOutputStream(uri)
-                    stream.write(ip_text.encode('utf-8'))
+            uri = resolver.insert(MediaStore_Downloads.EXTERNAL_CONTENT_URI, values)
+
+            if uri is not None:
+                stream = resolver.openOutputStream(uri)
+                if stream is not None:
+                    stream.write(ip_text.encode("utf-8"))
+                    stream.flush()
                     stream.close()
                     saved_path = "/storage/emulated/0/Download/clean_ipv6.txt"
                     success = True
-            except Exception as ex:
-                print("MediaStore error:", ex)
+        except Exception as e:
+            error_detail = str(e)
+            print("MediaStore error:", error_detail)
 
         if success:
-            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to:\n\n{saved_path}\n\n(Also copied to clipboard)")
+            self.show_popup(
+                "Saved Successfully",
+                f"{len(self.results)} IPs saved to Internal Storage:\n\n{saved_path}\n\n(Also copied to clipboard)"
+            )
         else:
-            self.show_popup("Error", "Could not save file to Download folder!")
+            self.show_popup(
+                "Error",
+                f"Could not save to Download folder!\n\n{error_detail}\n\nIPs are in clipboard."
+            )
 
     def clear_results(self, *args):
         self.results = []
