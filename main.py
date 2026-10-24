@@ -343,19 +343,47 @@ class Amir6App(App):
             self.show_popup("Error", "No IPs to save!")
             return
         
-        # تهیه متن تفکیک‌شده و خط‌به‌خط برای کپی خودکار و ذخیره
         ip_text = "\n".join([ip for _, ip in self.results])
         Clipboard.copy(ip_text)
-        
-        # تلاش برای ذخیره در حافظه داخلی برنامه
-        path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
+
+        saved = False
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(ip_text + "\n")
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            ContentValues = autoclass('android.content.ContentValues')
+            MediaStore = autoclass('android.provider.MediaStore$Files')
+            Environment = autoclass('android.os.Environment')
+            String = autoclass('java.lang.String')
             
-            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved & copied to clipboard!\n\nPath:\n{path}")
+            activity = PythonActivity.mActivity
+            context = activity.getApplicationContext()
+            resolver = context.getContentResolver()
+            
+            values = ContentValues()
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME, "clean_ipv6.txt")
+            values.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            
+            uri = resolver.insert(MediaStore.EXTERNAL_CONTENT_URI, values)
+            if uri is not None:
+                stream = resolver.openOutputStream(uri)
+                stream.write(ip_text.encode('utf-8'))
+                stream.close()
+                saved = True
         except Exception as e:
-            self.show_popup("Copied to Clipboard", f"{len(self.results)} IPs copied to clipboard successfully!")
+            print("MediaStore error:", e)
+
+        if saved:
+            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved directly to Download folder!\n(Also copied to clipboard)")
+        else:
+            # روش پشتیبان در حافظه داخلی در صورت عدم دسترسی
+            try:
+                path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(ip_text + "\n")
+                self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to app storage:\n{path}\n(Also copied to clipboard)")
+            except Exception as ex:
+                self.show_popup("Error", f"Could not save file:\n{str(ex)}")
 
     def clear_results(self, *args):
         self.results = []
