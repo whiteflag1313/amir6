@@ -11,6 +11,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.spinner import Spinner
+from kivy.uix.textinput import TextInput
 from kivy.uix.progressbar import ProgressBar
 from kivy.clock import Clock
 from kivy.core.window import Window
@@ -174,7 +175,7 @@ class Amir6App(App):
         self.results = []
         self.tested = 0
         self.found = 0
-        self.total = 0
+        self.total = 1000
         self.lock = threading.Lock()
         self.q = None
         self.row_widgets = []
@@ -192,8 +193,11 @@ class Amir6App(App):
 
         settings = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(6))
         settings.add_widget(Label(text="Count:", size_hint_x=0.22, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
-        self.spin_count = Spinner(text="1000", values=["500","1000","2000","3000"], size_hint_x=0.28, background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1), font_size="14sp")
+        
+        self.spin_count = Spinner(text="1000", values=["500","1000","2000","3000","Custom"], size_hint_x=0.28, background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1), font_size="14sp")
+        self.spin_count.bind(text=self.on_count_select)
         settings.add_widget(self.spin_count)
+
         settings.add_widget(Label(text="Threads:", size_hint_x=0.22, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
         self.spin_threads = Spinner(text="100", values=["50","100","150","200"], size_hint_x=0.28, background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1), font_size="14sp")
         settings.add_widget(self.spin_threads)
@@ -244,14 +248,43 @@ class Amir6App(App):
         Clock.schedule_interval(self.flush_rows, 0.5)
         return root
 
+    def on_count_select(self, spinner, text):
+        if text == "Custom":
+            self.show_custom_popup()
+
+    def show_custom_popup(self):
+        content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
+        content.add_widget(Label(text="Enter custom count:", color=(1,1,1,1), font_size="14sp"))
+        
+        self.txt_custom = TextInput(text="5000", multiline=False, input_filter="int", font_size="16sp", size_hint_y=None, height=dp(40))
+        content.add_widget(self.txt_custom)
+        
+        btn_ok = Button(text="SET", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#005500"), color=get_color_from_hex("#00ff88"), bold=True)
+        content.add_widget(btn_ok)
+        
+        popup = Popup(title="Custom Count", content=content, size_hint=(0.8, 0.35), background_color=get_color_from_hex("#1a1a2e"))
+        
+        def set_val(instance):
+            val = self.txt_custom.text.strip()
+            if val.isdigit() and int(val) > 0:
+                self.spin_count.text = val
+            popup.dismiss()
+            
+        btn_ok.bind(on_press=set_val)
+        popup.open()
+
     def start_scan(self, *args):
         if self.running:
             return
+        try:
+            self.total = int(self.spin_count.text)
+        except Exception:
+            self.total = 1000
+
         self.running = True
         self.results = []
         self.tested = 0
         self.found = 0
-        self.total = int(self.spin_count.text)
         self.progress.value = 0
         self.btn_start.disabled = True
         self.btn_stop.disabled = False
@@ -343,47 +376,46 @@ class Amir6App(App):
             self.show_popup("Error", "No IPs to save!")
             return
         
-        ip_text = "\n".join([ip for _, ip in self.results])
+        ip_text = "\n".join([ip for _, ip in self.results]) + "\n"
         Clipboard.copy(ip_text)
 
-        saved = False
+        saved_path = ""
+        success = False
+
+        # روش استاندارد اندروید برای ذخیره مستقیم و قابل رویت در پوشه Download
         try:
             from jnius import autoclass
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            ContentValues = autoclass('android.content.ContentValues')
-            MediaStore = autoclass('android.provider.MediaStore$Files')
             Environment = autoclass('android.os.Environment')
-            String = autoclass('java.lang.String')
-            
-            activity = PythonActivity.mActivity
-            context = activity.getApplicationContext()
-            resolver = context.getContentResolver()
-            
-            values = ContentValues()
-            values.put(MediaStore.MediaColumns.DISPLAY_NAME, "clean_ipv6.txt")
-            values.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
-            values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            
-            uri = resolver.insert(MediaStore.EXTERNAL_CONTENT_URI, values)
-            if uri is not None:
-                stream = resolver.openOutputStream(uri)
-                stream.write(ip_text.encode('utf-8'))
-                stream.close()
-                saved = True
-        except Exception as e:
-            print("MediaStore error:", e)
+            File = autoclass('java.io.File')
+            FileOutputStream = autoclass('java.io.FileOutputStream')
 
-        if saved:
-            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved directly to Download folder!\n(Also copied to clipboard)")
-        else:
-            # روش پشتیبان در حافظه داخلی در صورت عدم دسترسی
+            download_dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            file_obj = File(download_dir, "clean_ipv6.txt")
+            
+            fos = FileOutputStream(file_obj)
+            fos.write(ip_text.encode('utf-8'))
+            fos.close()
+            
+            saved_path = file_obj.getAbsolutePath()
+            success = True
+        except Exception as e:
+            print("Download folder write error:", e)
+
+        # اگر پوشه عمومی مسدود بود، ذخیره در حافظه داخلی اختصاصی اپلیکیشن به عنوان پشتیبان
+        if not success:
             try:
                 path = os.path.join(self.user_data_dir, "clean_ipv6.txt")
                 with open(path, "w", encoding="utf-8") as f:
-                    f.write(ip_text + "\n")
-                self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to app storage:\n{path}\n(Also copied to clipboard)")
+                    f.write(ip_text)
+                saved_path = path
+                success = True
             except Exception as ex:
-                self.show_popup("Error", f"Could not save file:\n{str(ex)}")
+                print("App storage write error:", ex)
+
+        if success:
+            self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved to:\n\n{saved_path}\n\n(Also copied to clipboard)")
+        else:
+            self.show_popup("Error", "Could not save file!")
 
     def clear_results(self, *args):
         self.results = []
