@@ -83,27 +83,22 @@ class IPRow(BoxLayout):
         self.padding = [dp(6), dp(2)]
         self.spacing = dp(2)
         self.ip = ip
-
-        if ms < 450:
-            color = get_color_from_hex("#00ff88")
-        elif ms < 650:
-            color = get_color_from_hex("#ffcc00")
-        else:
-            color = get_color_from_hex("#ff4444")
+        self.rank = rank
 
         # خط بالا: رتبه، آی‌پی و دکمه کپی
         top_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(26), spacing=dp(6))
         
-        top_layout.add_widget(Label(
+        self.lbl_rank = Label(
             text=str(rank),
             size_hint_x=0.08,
             color=get_color_from_hex("#666666"),
             font_size="12sp",
             halign="center",
             valign="middle"
-        ))
+        )
+        top_layout.add_widget(self.lbl_rank)
 
-        ip_label = Label(
+        self.lbl_ip = Label(
             text=ip,
             size_hint_x=0.76,
             color=get_color_from_hex("#00ccff"),
@@ -113,8 +108,8 @@ class IPRow(BoxLayout):
             shorten=True,
             shorten_from="right"
         )
-        ip_label.bind(on_touch_down=self.copy_ip)
-        top_layout.add_widget(ip_label)
+        self.lbl_ip.bind(on_touch_down=self.copy_ip_touch)
+        top_layout.add_widget(self.lbl_ip)
 
         btn_copy = Button(
             text="COPY",
@@ -133,23 +128,45 @@ class IPRow(BoxLayout):
         bottom_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(20))
         bottom_layout.add_widget(Label(text="", size_hint_x=0.08))
         
-        ping_label = Label(
+        self.lbl_ping = Label(
             text=f"Ping: {ms:.0f} ms",
             size_hint_x=0.92,
-            color=color,
+            color=self.get_ping_color(ms),
             font_size="12sp",
             bold=True,
             halign="left",
             valign="middle"
         )
-        ping_label.bind(size=ping_label.setter('text_size'))
-        bottom_layout.add_widget(ping_label)
+        self.lbl_ping.bind(size=self.lbl_ping.setter('text_size'))
+        bottom_layout.add_widget(self.lbl_ping)
         
         self.add_widget(bottom_layout)
+
+    def get_ping_color(self, ms):
+        if ms < 450:
+            return get_color_from_hex("#00ff88")
+        elif ms < 650:
+            return get_color_from_hex("#ffcc00")
+        else:
+            return get_color_from_hex("#ff4444")
+
+    def update_data(self, rank, ip, ms):
+        self.rank = rank
+        self.ip = ip
+        self.lbl_rank.text = str(rank)
+        self.lbl_ip.text = ip
+        self.lbl_ping.text = f"Ping: {ms:.0f} ms"
+        self.lbl_ping.color = self.get_ping_color(ms)
 
     def copy_ip(self, *args):
         Clipboard.copy(self.ip)
         return True
+
+    def copy_ip_touch(self, instance, touch):
+        if self.lbl_ip.collide_point(*touch.pos):
+            Clipboard.copy(self.ip)
+            return True
+        return False
 
 
 class Amir6App(App):
@@ -162,6 +179,7 @@ class Amir6App(App):
         self.total = 0
         self.lock = threading.Lock()
         self.q = None
+        self.row_widgets = []
 
         root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
 
@@ -211,6 +229,15 @@ class Amir6App(App):
         scroll = ScrollView(do_scroll_x=False)
         self.results_layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(4), padding=[0, dp(4)])
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
+        
+        # پیش‌ساختن 50 ویجت ردیف جهت حذف کامل لگ اسکرول و بهینه‌سازی سرعت
+        for i in range(50):
+            row = IPRow(i + 1, "—", 0)
+            row.opacity = 0
+            row.height = 0
+            self.row_widgets.append(row)
+            self.results_layout.add_widget(row)
+
         scroll.add_widget(self.results_layout)
         root.add_widget(scroll)
 
@@ -228,7 +255,6 @@ class Amir6App(App):
         self.tested = 0
         self.found = 0
         self.total = int(self.spin_count.text)
-        self.results_layout.clear_widgets()
         self.progress.value = 0
         self.btn_start.disabled = True
         self.btn_stop.disabled = False
@@ -291,9 +317,15 @@ class Amir6App(App):
             tested = self.tested
             current = self.results[:50]
 
-        self.results_layout.clear_widgets()
-        for i, (m, p) in enumerate(current, 1):
-            self.results_layout.add_widget(IPRow(i, p, m))
+        for i, row in enumerate(self.row_widgets):
+            if i < len(current):
+                m, p = current[i]
+                row.update_data(i + 1, p, m)
+                row.opacity = 1
+                row.height = dp(52)
+            else:
+                row.opacity = 0
+                row.height = 0
 
         self.progress.value = min(pct, 100)
         self.lbl_status.text = f"Scanning... {tested}/{self.total}  |  Found: {found}"
@@ -315,10 +347,10 @@ class Amir6App(App):
             return
         
         content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
-        content.add_widget(Label(text="انتخاب محل ذخیره سازی آی‌پی‌ها:", color=(1,1,1,1), font_size="13sp", halign="center"))
+        content.add_widget(Label(text="Select save location for IPs:", color=(1,1,1,1), font_size="13sp", halign="center"))
         
-        btn_internal = Button(text="حافظه داخلی (پوشه اختصاصی برنامه)", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#003355"), color=get_color_from_hex("#00aaff"))
-        btn_external = Button(text="حافظه خارجی (پوشه Download)", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#005500"), color=get_color_from_hex("#00ff88"))
+        btn_internal = Button(text="Internal Memory (App Folder)", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#003355"), color=get_color_from_hex("#00aaff"))
+        btn_external = Button(text="External Memory (Download Folder)", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#005500"), color=get_color_from_hex("#00ff88"))
         
         popup = Popup(title="Save Location", content=content, size_hint=(0.9, 0.45), background_color=get_color_from_hex("#1a1a2e"))
         
@@ -374,7 +406,9 @@ class Amir6App(App):
 
     def clear_results(self, *args):
         self.results = []
-        self.results_layout.clear_widgets()
+        for row in self.row_widgets:
+            row.opacity = 0
+            row.height = 0
         self.lbl_best.text = "Best: —"
         self.lbl_status.text = "Cleared"
         self.progress.value = 0
