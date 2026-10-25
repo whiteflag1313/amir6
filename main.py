@@ -179,6 +179,7 @@ class Amir6App(App):
         self.lock = threading.Lock()
         self.q = None
         self.row_widgets = []
+        self.save_data = None
 
         root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
 
@@ -378,68 +379,55 @@ class Amir6App(App):
 
         ip_text = "\n".join([ip for _, ip in self.results]) + "\n"
         Clipboard.copy(ip_text)
-
-        success = False
-        saved_path = ""
-        error_detail = ""
+        self.save_data = ip_text
 
         try:
-            from jnius import autoclass
+            from jnius import autoclass, cast
+            from android import activity
+            from android.storage import primary_external_storage_path
 
+            Intent = autoclass('android.content.Intent')
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            Environment = autoclass('android.os.Environment')
-            ContentValues = autoclass('android.content.ContentValues')
-            MediaStore = autoclass('android.provider.MediaStore')
 
-            activity = PythonActivity.mActivity
-            context = activity.getApplicationContext()
-            resolver = context.getContentResolver()
+            intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.setType("text/plain")
+            intent.putExtra(Intent.EXTRA_TITLE, "clean_ipv6.txt")
 
-            values = ContentValues()
-            values.put("_display_name", "clean_ipv6.txt")
-            values.put("mime_type", "text/plain")
-            values.put("relative_path", Environment.DIRECTORY_DOWNLOADS)
+            currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+            currentActivity.startActivityForResult(intent, 42)
 
-            collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-            uri = resolver.insert(collection, values)
+            # نتیجه در on_activity_result هندل می‌شه
+            activity.bind(on_activity_result=self.on_activity_result)
 
-            if uri is None:
-                collection = MediaStore.Files.getContentUri("external")
-                uri = resolver.insert(collection, values)
-
-            if uri is not None:
-                stream = resolver.openOutputStream(uri)
-                if stream is not None:
-                    stream.write(ip_text.encode("utf-8"))
-                    stream.flush()
-                    stream.close()
-                    saved_path = "/storage/emulated/0/Download/clean_ipv6.txt"
-                    success = True
         except Exception as e:
-            error_detail = str(e)
-            print("Save error:", error_detail)
+            self.show_popup("Error", f"Could not open save dialog:\n{str(e)}\n\nIPs are in clipboard.")
 
-        if not success:
-            try:
-                path = "/storage/emulated/0/Download/clean_ipv6.txt"
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(ip_text)
-                saved_path = path
-                success = True
-            except Exception as e2:
-                error_detail += f"\nDirect write: {str(e2)}"
+    def on_activity_result(self, request_code, result_code, intent):
+        if request_code != 42:
+            return
 
-        if success:
-            self.show_popup(
-                "Saved Successfully",
-                f"{len(self.results)} IPs saved!\n\n{saved_path}\n\n(Also copied to clipboard)"
-            )
-        else:
-            self.show_popup(
-                "Error",
-                f"Could not save to Download folder!\n\n{error_detail}\n\nIPs are in clipboard. You can paste them."
-            )
+        try:
+            from jnius import autoclass, cast
+            Activity = autoclass('android.app.Activity')
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+
+            if result_code == Activity.RESULT_OK and intent is not None:
+                uri = intent.getData()
+                if uri is not None:
+                    activity = PythonActivity.mActivity
+                    resolver = activity.getContentResolver()
+                    stream = resolver.openOutputStream(uri)
+                    if stream is not None and self.save_data:
+                        stream.write(self.save_data.encode("utf-8"))
+                        stream.flush()
+                        stream.close()
+                        self.show_popup("Saved Successfully", f"{len(self.results)} IPs saved!\n\n(Also copied to clipboard)")
+                        return
+        except Exception as e:
+            print("Save result error:", e)
+
+        self.show_popup("Error", "Save cancelled or failed.\nIPs are still in clipboard.")
 
     def clear_results(self, *args):
         self.results = []
@@ -452,8 +440,7 @@ class Amir6App(App):
 
     def show_popup(self, title, msg):
         content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
-        content.add_widget(Label(text=msg, color=(1,1,1,1), font_size="13sp",
-halign="center"))
+        content.add_widget(Label(text=msg, color=(1,1,1,1), font_size="13sp", halign="center"))
         btn = Button(text="OK", size_hint_y=None, height=dp(42), background_color=get_color_from_hex("#005500"))
         content.add_widget(btn)
         popup = Popup(title=title, content=content, size_hint=(0.88, 0.38), background_color=get_color_from_hex("#1a1a2e"))
