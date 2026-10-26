@@ -23,7 +23,6 @@ from kivy.core.clipboard import Clipboard
 Window.clearcolor = get_color_from_hex("#0d0d0d")
 
 # ====================== ISP Ranges ======================
-# Cloudflare IPv6 (قبلی)
 CF_IPV6 = [
     "2606:4700:3030::/48","2606:4700:3031::/48",
     "2606:4700:3032::/48","2606:4700:3033::/48",
@@ -37,26 +36,15 @@ CF_IPV6 = [
     "2606:4700:300::/48","2606:4700:4700::/48",
 ]
 
-# Cloudflare IPv4 (چند رنج معروف)
 CF_IPV4 = [
-    "104.16.0.0/13",
-    "104.24.0.0/14",
-    "172.64.0.0/13",
-    "162.158.0.0/15",
-    "198.41.128.0/17",
-    "173.245.48.0/20",
-    "103.21.244.0/22",
-    "103.22.200.0/22",
-    "103.31.4.0/22",
-    "141.101.64.0/18",
-    "108.162.192.0/18",
-    "190.93.240.0/20",
-    "188.114.96.0/20",
-    "197.234.240.0/22",
-    "198.41.128.0/17",
+    "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13",
+    "162.158.0.0/15", "198.41.128.0/17", "173.245.48.0/20",
+    "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+    "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20",
+    "188.114.96.0/20", "197.234.240.0/22",
 ]
 
-# ArvanCloud ranges (از فایل سیمرغ + عکس‌ها)
+# رنج‌های به‌روز شده آروان
 ARVAN_IPV4 = [
     "91.216.13.0/24",
     "130.185.120.0/22",
@@ -65,9 +53,13 @@ ARVAN_IPV4 = [
     "193.24.119.0/24",
     "194.5.192.0/23",
     "194.5.206.0/23",
+    "185.215.232.0/22",
+    "37.32.3.0/24",
+    "185.143.232.0/22",
+    "185.220.226.0/24",
+    "193.176.240.0/24",
 ]
 
-# لیست ISPها با اولویت (Cloudflare اول، بعد آروان‌ها)
 ISP_LIST = [
     "Cloudflare",
     "ArvanCloud Global TR",
@@ -75,10 +67,12 @@ ISP_LIST = [
     "ARVANCLOUD GLOBAL TECHNOLOGIES L.L.C",
     "Mobin Arvand Infrastructure Company LTD",
     "Noyan Abr Arvan Co. (Private Joint Stock)",
+    "ArvanCloud CDN (IR)",
+    "ArvanCloud Global (AE)",
+    "AbrArvan IaaS",
 ]
 
 def get_ranges(isp_name, protocol):
-    """برگرداندن رنج‌های مناسب بر اساس ISP و پروتکل"""
     ranges = []
     if isp_name == "Cloudflare":
         if protocol in ("IPv6", "Both"):
@@ -86,7 +80,7 @@ def get_ranges(isp_name, protocol):
         if protocol in ("IPv4", "Both"):
             ranges.extend(CF_IPV4)
     else:
-        # همه آروان‌ها فعلاً از لیست IPv4 استفاده می‌کنن
+        # همه آروان‌ها از لیست مشترک استفاده می‌کنن
         if protocol in ("IPv4", "Both"):
             ranges.extend(ARVAN_IPV4)
     return ranges
@@ -106,8 +100,6 @@ def ping_once(ip, timeout=4.0):
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         t0 = time.monotonic()
-
-        # تشخیص IPv4 یا IPv6
         family = socket.AF_INET6 if ":" in ip else socket.AF_INET
         info = socket.getaddrinfo(ip, 443, family, socket.SOCK_STREAM)
         af, st, pr, _, addr = info[0]
@@ -137,7 +129,6 @@ def test_ip(ip, pcount=2):
         time.sleep(0.02)
     return round(sum(pings) / len(pings), 1)
 
-
 class IPRow(BoxLayout):
     def __init__(self, rank, ip, ms, **kwargs):
         super().__init__(**kwargs)
@@ -150,58 +141,27 @@ class IPRow(BoxLayout):
         self.rank = rank
 
         top_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(26), spacing=dp(6))
-        
-        self.lbl_rank = Label(
-            text=str(rank),
-            size_hint_x=0.08,
-            color=get_color_from_hex("#666666"),
-            font_size="12sp",
-            halign="center",
-            valign="middle"
-        )
+        self.lbl_rank = Label(text=str(rank), size_hint_x=0.08, color=get_color_from_hex("#666666"),
+                               font_size="12sp", halign="center", valign="middle")
         top_layout.add_widget(self.lbl_rank)
 
-        self.lbl_ip = Label(
-            text=ip,
-            size_hint_x=0.76,
-            color=get_color_from_hex("#00ccff"),
-            font_size="12sp",
-            halign="left",
-            valign="middle",
-            shorten=True,
-            shorten_from="right"
-        )
+        self.lbl_ip = Label(text=ip, size_hint_x=0.76, color=get_color_from_hex("#00ccff"),
+                            font_size="12sp", halign="left", valign="middle", shorten=True, shorten_from="right")
         self.lbl_ip.bind(on_touch_down=self.copy_ip_touch)
         top_layout.add_widget(self.lbl_ip)
 
-        btn_copy = Button(
-            text="COPY",
-            size_hint_x=0.16,
-            background_color=get_color_from_hex("#1a1a2e"),
-            color=get_color_from_hex("#00ccff"),
-            font_size="10sp",
-            bold=True
-        )
+        btn_copy = Button(text="COPY", size_hint_x=0.16, background_color=get_color_from_hex("#1a1a2e"),
+                          color=get_color_from_hex("#00ccff"), font_size="10sp", bold=True)
         btn_copy.bind(on_press=self.copy_ip)
         top_layout.add_widget(btn_copy)
-
         self.add_widget(top_layout)
 
         bottom_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(20))
         bottom_layout.add_widget(Label(text="", size_hint_x=0.08))
-        
-        self.lbl_ping = Label(
-            text=f"Ping: {ms:.0f} ms",
-            size_hint_x=0.92,
-            color=self.get_ping_color(ms),
-            font_size="12sp",
-            bold=True,
-            halign="left",
-            valign="middle"
-        )
+        self.lbl_ping = Label(text=f"Ping: {ms:.0f} ms", size_hint_x=0.92, color=self.get_ping_color(ms),
+                              font_size="12sp", bold=True, halign="left", valign="middle")
         self.lbl_ping.bind(size=self.lbl_ping.setter('text_size'))
         bottom_layout.add_widget(self.lbl_ping)
-        
         self.add_widget(bottom_layout)
 
     def get_ping_color(self, ms):
@@ -230,7 +190,6 @@ class IPRow(BoxLayout):
             return True
         return False
 
-
 class Amir6App(App):
     def build(self):
         self.title = "AMIR6 - CF IPv Scanner"
@@ -243,20 +202,15 @@ class Amir6App(App):
         self.q = None
         self.row_widgets = []
         self.save_data = None
+        self.selected_isp = "Cloudflare"
 
         root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
 
-        # Header
-        header = Label(
-            text="[b][color=00ccff]AMIR6[/color]  CF IPv Scanner[/b]",
-            markup=True,
-            size_hint_y=None,
-            height=dp(36),
-            font_size="16sp"
-        )
+        header = Label(text="[b][color=00ccff]AMIR6[/color]  CF IPv Scanner[/b]", markup=True,
+                       size_hint_y=None, height=dp(36), font_size="16sp")
         root.add_widget(header)
 
-        # Settings row 1: Count + Threads
+        # Count + Threads
         settings1 = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(6))
         settings1.add_widget(Label(text="Count:", size_hint_x=0.22, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
         self.spin_count = Spinner(text="1000", values=["500","1000","2000","3000","Custom"], size_hint_x=0.28,
@@ -270,17 +224,19 @@ class Amir6App(App):
         settings1.add_widget(self.spin_threads)
         root.add_widget(settings1)
 
-        # Settings row 2: Protocol + ISP
+        # Type + ISP
         settings2 = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(6))
         settings2.add_widget(Label(text="Type:", size_hint_x=0.22, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
-        self.spin_proto = Spinner(text="IPv6", values=["IPv4", "IPv6", "Both"], size_hint_x=0.28,
+        self.spin_proto = Spinner(text="IPv4", values=["IPv4", "IPv6", "Both"], size_hint_x=0.28,
                                   background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1), font_size="14sp")
         settings2.add_widget(self.spin_proto)
 
         settings2.add_widget(Label(text="ISP:", size_hint_x=0.15, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
-        self.spin_isp = Spinner(text="Cloudflare", values=ISP_LIST, size_hint_x=0.35,
-                                background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1), font_size="12sp")
-        settings2.add_widget(self.spin_isp)
+        self.btn_isp = Button(text="Cloudflare", size_hint_x=0.35,
+                              background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1),
+                              font_size="12sp", shorten=True)
+        self.btn_isp.bind(on_press=self.open_isp_popup)
+        settings2.add_widget(self.btn_isp)
         root.add_widget(settings2)
 
         # Buttons
@@ -321,14 +277,12 @@ class Amir6App(App):
         scroll = ScrollView(do_scroll_x=False)
         self.results_layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(4), padding=[0, dp(4)])
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
-        
         for i in range(50):
             row = IPRow(i + 1, "—", 0)
             row.opacity = 0
             row.height = 0
             self.row_widgets.append(row)
             self.results_layout.add_widget(row)
-
         scroll.add_widget(self.results_layout)
         root.add_widget(scroll)
 
@@ -339,6 +293,40 @@ class Amir6App(App):
         Clock.schedule_interval(self.flush_rows, 0.5)
         return root
 
+    def open_isp_popup(self, *args):
+        content = BoxLayout(orientation="vertical", padding=dp(8), spacing=dp(6))
+        content.add_widget(Label(text="Select ISP", size_hint_y=None, height=dp(30),
+                                 color=get_color_from_hex("#00ccff"), font_size="15sp", bold=True))
+
+        scroll = ScrollView(do_scroll_x=False)
+        layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(4))
+        layout.bind(minimum_height=layout.setter("height"))
+
+        for isp in ISP_LIST:
+            btn = Button(text=isp, size_hint_y=None, height=dp(42),
+                         background_color=get_color_from_hex("#1a1a2e"),
+                         color=(1,1,1,1), font_size="13sp")
+            btn.bind(on_press=lambda x, name=isp: self.select_isp(name))
+            layout.add_widget(btn)
+
+        scroll.add_widget(layout)
+        content.add_widget(scroll)
+
+        btn_close = Button(text="Close", size_hint_y=None, height=dp(40),
+                           background_color=get_color_from_hex("#333333"))
+        content.add_widget(btn_close)
+
+        self.isp_popup = Popup(title="", content=content, size_hint=(0.9, 0.75),
+                               background_color=get_color_from_hex("#0d0d0d"))
+        btn_close.bind(on_press=self.isp_popup.dismiss)
+        self.isp_popup.open()
+
+    def select_isp(self, name):
+        self.selected_isp = name
+        self.btn_isp.text = name
+        if hasattr(self, "isp_popup"):
+            self.isp_popup.dismiss()
+
     def on_count_select(self, spinner, text):
         if text == "Custom":
             self.show_custom_popup()
@@ -346,25 +334,20 @@ class Amir6App(App):
     def show_custom_popup(self):
         content = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
         content.add_widget(Label(text="Enter custom count:", color=(1,1,1,1), font_size="14sp"))
-        
         self.txt_custom = TextInput(text="5000", multiline=False, input_filter="int",
                                     font_size="16sp", size_hint_y=None, height=dp(40))
         content.add_widget(self.txt_custom)
-        
         btn_ok = Button(text="SET", size_hint_y=None, height=dp(42),
                         background_color=get_color_from_hex("#005500"),
                         color=get_color_from_hex("#00ff88"), bold=True)
         content.add_widget(btn_ok)
-        
         popup = Popup(title="Custom Count", content=content, size_hint=(0.8, 0.35),
                       background_color=get_color_from_hex("#1a1a2e"))
-        
         def set_val(instance):
             val = self.txt_custom.text.strip()
             if val.isdigit() and int(val) > 0:
                 self.spin_count.text = val
             popup.dismiss()
-            
         btn_ok.bind(on_press=set_val)
         popup.open()
 
@@ -375,7 +358,6 @@ class Amir6App(App):
             self.total = int(self.spin_count.text)
         except Exception:
             self.total = 1000
-
         self.running = True
         self.results = []
         self.tested = 0
@@ -401,7 +383,7 @@ class Amir6App(App):
         self.lbl_status.color = get_color_from_hex("#ffcc00")
 
     def scan_worker(self):
-        isp = self.spin_isp.text
+        isp = self.selected_isp
         proto = self.spin_proto.text
         ranges = get_ranges(isp, proto)
 
@@ -484,40 +466,31 @@ class Amir6App(App):
         if not self.results:
             self.show_popup("Error", "No IPs to save!")
             return
-
         ip_text = "\n".join([ip for _, ip in self.results]) + "\n"
         Clipboard.copy(ip_text)
         self.save_data = ip_text
-
         try:
             from jnius import autoclass, cast
             from android import activity
-
             Intent = autoclass('android.content.Intent')
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-
             intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             intent.addCategory(Intent.CATEGORY_OPENABLE)
             intent.setType("text/plain")
             intent.putExtra(Intent.EXTRA_TITLE, "clean_ip.txt")
-
             currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
             currentActivity.startActivityForResult(intent, 42)
-
             activity.bind(on_activity_result=self.on_activity_result)
-
         except Exception as e:
             self.show_popup("Error", f"Could not open save dialog:\n{str(e)}\n\nIPs are in clipboard.")
 
     def on_activity_result(self, request_code, result_code, intent):
         if request_code != 42:
             return
-
         try:
             from jnius import autoclass, cast
             Activity = autoclass('android.app.Activity')
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-
             if result_code == Activity.RESULT_OK and intent is not None:
                 uri = intent.getData()
                 if uri is not None:
@@ -532,7 +505,6 @@ class Amir6App(App):
                         return
         except Exception as e:
             print("Save result error:", e)
-
         self.show_popup("Error", "Save cancelled or failed.\nIPs are still in clipboard.")
 
     def clear_results(self, *args):
@@ -553,7 +525,6 @@ class Amir6App(App):
                       background_color=get_color_from_hex("#1a1a2e"))
         btn.bind(on_press=popup.dismiss)
         popup.open()
-
 
 if __name__ == "__main__":
     Amir6App().run()
