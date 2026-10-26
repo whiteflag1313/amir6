@@ -1,9 +1,11 @@
-#!/usr/init/env python3
-# AMIR6 - Automatic MSP Config Generator & IP Fetcher
+#!/usr/bin/env python3
+# AMIR6 - Auto MSP Config Generator & IP Fetcher
 
 import urllib.request
 import urllib.parse
 import json
+import ssl
+import random
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -54,7 +56,7 @@ class Amir6App(App):
         config_layout.add_widget(self.txt_config)
         root.add_widget(config_layout)
 
-        # دکمه‌ی جادویی (پیدا کردن خودکار و ترکیب)
+        # دکمه‌ی دریافت خودکار و ترکیب
         btn_box = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(8))
         self.btn_auto = Button(
             text="FIND IP & GENERATE CONFIG",
@@ -96,25 +98,23 @@ class Amir6App(App):
         self.lbl_status.color = get_color_from_hex("#ffcc00")
 
         try:
-            # دریافت لیست آی‌پی‌های تمیز از منابع عمومی معتبر گیت‌هاب
-            # (به عنوان نمونه از منابع عمومی آی‌پی‌های تمیز استفاده می‌کنیم)
             url = "https://raw.githubusercontent.com/yebekhe/ArvanFilterBypasser/main/ips.txt"
             if "Cloudflare" in self.spin_source.text:
                 url = "https://raw.githubusercontent.com/yebekhe/CFScanner/main/ips.txt"
 
+            # دور زدن خطای گواهی SSL در محیط اندروید
+            ctx_ssl = ssl._create_unverified_context()
+
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, context=ctx_ssl, timeout=5) as response:
                 content = response.read().decode('utf-8')
                 ip_lines = [line.strip() for line in content.splitlines() if line.strip() and not line.startswith("#")]
 
             if not ip_lines:
                 raise Exception("No IPs found in online source.")
 
-            # انتخاب یک آی‌پی تمیز (به صورت تصادفی از لیست زنده)
-            import random
             clean_ip = random.choice(ip_lines)
 
-            # پارامتر کردن و ترکیب با کانفیگ پایه
             parts = raw_config.split("vless://")[1].split("#")
             main_part = parts[0]
             tag = f"#{parts[1]}" if len(parts) > 1 else "#AMIR6-AutoMSP"
