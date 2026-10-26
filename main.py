@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AMIR6 - Simorgh Architecture Clone (Arvan Scan + CF Config Real Ping & Connect)
+# AMIR6 - Simorgh Architecture Final Edition (Arvan + WS Handshake + Connect)
 
 import threading, socket, ssl, time, random, ipaddress, os, urllib.parse
 from queue import Queue, Empty
@@ -22,7 +22,7 @@ from kivy.core.clipboard import Clipboard
 
 Window.clearcolor = get_color_from_hex("#0d0d0d")
 
-# ====================== ISP Ranges (Arvan & Cloudflare) ======================
+# ====================== رنج‌های آی‌پی آروان ======================
 ARVAN_IPV4 = [
     "91.216.13.0/24", "130.185.120.0/22", "185.204.168.0/22",
     "185.235.40.0/22", "193.24.119.0/24", "194.5.192.0/23",
@@ -53,9 +53,11 @@ def rand_ip_from_ranges(ranges):
     return str(net.network_address + random.randint(1, n - 2))
 
 def parse_vless_config(config_str):
+    """استخراج هوشمند آدرس، پورت، SNI و Path از لینک VLESS"""
     sni = "cloudflare.com"
     address = "185.121.201.201"
     port = "443"
+    path = "/"
     try:
         config_str = config_str.strip()
         if config_str.startswith("vless://"):
@@ -66,6 +68,8 @@ def parse_vless_config(config_str):
                     server_port_path, query_part = right_part.split("?", 1)
                 elif "/" in right_part:
                     server_port_path, query_part = right_part.split("/", 1)
+                    if not query_part.startswith("type="):
+                        path = "/" + query_part.split("?")[0]
                 else:
                     server_port_path, query_part = right_part, ""
                 
@@ -77,12 +81,14 @@ def parse_vless_config(config_str):
                 params = urllib.parse.parse_qs(query_part)
                 if "sni" in params:
                     sni = params["sni"][0]
+                if "path" in params:
+                    path = params["path"][0]
     except Exception:
         pass
-    return address, port, sni
+    return address, port, sni, path
 
-def ping_once(ip, sni_domain, delay_url="https://www.gstatic.com/generate_204", timeout=4.0):
-    """تست واقعی اتصال (Real Delay) مانند سیمرغ روی پورت ۴۴۳"""
+def ping_once(ip, sni_domain, path, timeout=4.0):
+    """تست واقعی هندشیک وب‌سکت (WebSocket Handshake) روی پورت ۴۴۳ مانند سیمرغ"""
     try:
         t0 = time.monotonic()
         info = socket.getaddrinfo(ip, 443, socket.AF_INET, socket.SOCK_STREAM)
@@ -97,21 +103,30 @@ def ping_once(ip, sni_domain, delay_url="https://www.gstatic.com/generate_204", 
         ctx.verify_mode = ssl.CERT_NONE
         
         target_sni = sni_domain if sni_domain else "cloudflare.com"
+        target_path = path if path else "/"
         
         with ctx.wrap_socket(s, server_hostname=target_sni) as tls:
-            tls.sendall(
-                f"GET / HTTP/1.1\r\n"
+            # ارسال هدرهای تخصصی وب‌سکت برای برقراری تونل واقعی روی ورکر
+            ws_req = (
+                f"GET {target_path} HTTP/1.1\r\n"
                 f"Host: {target_sni}\r\n"
-                f"Connection: close\r\n\r\n".encode()
+                f"Upgrade: websocket\r\n"
+                f"Connection: Upgrade\r\n"
+                f"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+                f"Sec-WebSocket-Version: 13\r\n\r\n"
             )
-            tls.recv(64)
+            tls.sendall(ws_req.encode())
+            resp = tls.recv(128)
             
+            if len(resp) < 3:
+                return None
+                
         return (time.monotonic() - t0) * 1000
     except Exception:
         return None
 
-def test_ip(ip, sni_domain, delay_url):
-    ms = ping_once(ip, sni_domain, delay_url)
+def test_ip(ip, sni_domain, path):
+    ms = ping_once(ip, sni_domain, path)
     if ms is None:
         return None
     return round(ms, 1)
@@ -130,26 +145,18 @@ class IPRow(BoxLayout):
         self.lbl_rank = Label(text=str(rank), size_hint_x=0.08, color=get_color_from_hex("#666666"), font_size="11sp")
         self.add_widget(self.lbl_rank)
 
-        self.lbl_ip = Label(text=ip, size_hint_x=0.50, color=get_color_from_hex("#00ccff"), font_size="11sp", halign="left")
+        self.lbl_ip = Label(text=ip, size_hint_x=0.48, color=get_color_from_hex("#00ccff"), font_size="11sp", halign="left")
         self.lbl_ip.bind(size=self.lbl_ip.setter('text_size'))
         self.add_widget(self.lbl_ip)
 
-        self.lbl_ping = Label(text=f"{ms:.0f} ms", size_hint_x=0.22, color=self.get_ping_color(ms), font_size="11sp", bold=True)
+        self.lbl_ping = Label(text=f"{ms:.0f} ms", size_hint_x=0.22, color=get_color_from_hex("#00ff88"), font_size="11sp", bold=True)
         self.add_widget(self.lbl_ping)
 
-        # دکمه Connect اختصاصی روبه‌روی هر آی‌پی (دقیقاً مثل سیمرغ)
-        btn_connect = Button(text="CONNECT", size_hint_x=0.20, background_color=get_color_from_hex("#005500"),
+        # دکمه Connect دقیقاً مانند سیمرغ کنار هر آی‌پی
+        btn_connect = Button(text="CONNECT", size_hint_x=0.22, background_color=get_color_from_hex("#005500"),
                              color=get_color_from_hex("#00ff88"), font_size="10sp", bold=True)
         btn_connect.bind(on_press=lambda x: self.app_instance.connect_with_ip(self.ip))
         self.add_widget(btn_connect)
-
-    def get_ping_color(self, ms):
-        if ms < 450:
-            return get_color_from_hex("#00ff88")
-        elif ms < 650:
-            return get_color_from_hex("#ffcc00")
-        else:
-            return get_color_from_hex("#ff4444")
 
 class Amir6App(App):
     def build(self):
@@ -165,11 +172,11 @@ class Amir6App(App):
 
         root = BoxLayout(orientation="vertical", padding=dp(8), spacing=dp(6))
 
-        header = Label(text="[b][color=00ccff]AMIR6[/color]  Simorgh Architecture[/b]", markup=True,
+        header = Label(text="[b][color=00ccff]AMIR6[/color] Simorgh Architecture[/b]", markup=True,
                        size_hint_y=None, height=dp(28), font_size="15sp")
         root.add_widget(header)
 
-        # ۱. انتخاب ISP (بخش MSP Configuration)
+        # انتخاب ISP (بخش MSP Configuration)
         isp_box = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
         isp_box.add_widget(Label(text="ISP:", size_hint_x=0.15, color=get_color_from_hex("#aaaaaa"), font_size="12sp"))
         self.spin_isp = Spinner(text="AbrArvan CDN and IaaS (Arvan)", values=list(ISP_DICT.keys()), size_hint_x=0.85,
@@ -177,21 +184,7 @@ class Amir6App(App):
         isp_box.add_widget(self.spin_isp)
         root.add_widget(isp_box)
 
-        # ۲. بخش Real Delay URL (لینک تست تاخیر)
-        url_box = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
-        url_box.add_widget(Label(text="Delay URL:", size_hint_x=0.22, color=get_color_from_hex("#aaaaaa"), font_size="12sp"))
-        self.spin_url = Spinner(text="https://www.gstatic.com/generate_204", 
-                                values=[
-                                    "https://www.gstatic.com/generate_204",
-                                    "https://connectivitycheck.gstatic.com/generate_204",
-                                    "https://www.google.com/generate_204",
-                                    "https://cp.cloudflare.com/generate_204"
-                                ], size_hint_x=0.78,
-                                background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1), font_size="11sp")
-        url_box.add_widget(self.spin_url)
-        root.add_widget(url_box)
-
-        # ۳. باکس جایگذاری کانفیگ (Paste VLESS Config Port 443)
+        # باکس جایگذاری کانفیگ پورت ۴۴۳
         config_layout = BoxLayout(orientation="vertical", size_hint_y=None, height=dp(52), spacing=dp(2))
         config_layout.add_widget(Label(text="Paste VLESS Config (Port 443):", size_hint_y=None, height=dp(14), color=get_color_from_hex("#00ccff"), font_size="10sp"))
         self.txt_config = TextInput(text="vless://uuid@185.121.201.201:443?type=ws&security=tls&sni=long-morning-7443.amirsanaei1313.workers.dev#OMID",
@@ -200,7 +193,7 @@ class Amir6App(App):
         config_layout.add_widget(self.txt_config)
         root.add_widget(config_layout)
 
-        # دکمه‌های کنترل (START / STOP / SAVE / CLEAR)
+        # دکمه‌های کنترل
         btn_row = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(6))
         self.btn_start = Button(text="START SCAN", background_color=get_color_from_hex("#005500"), color=get_color_from_hex("#00ff88"), bold=True, font_size="13sp")
         self.btn_start.bind(on_press=self.start_scan)
@@ -218,10 +211,10 @@ class Amir6App(App):
         self.progress = ProgressBar(max=100, value=0, size_hint_y=None, height=dp(6))
         root.add_widget(self.progress)
 
-        self.lbl_status = Label(text="Ready to scan Arvan ranges...", color=get_color_from_hex("#888888"), size_hint_y=None, height=dp(22), font_size="12sp")
+        self.lbl_status = Label(text="Ready to scan...", color=get_color_from_hex("#888888"), size_hint_y=None, height=dp(22), font_size="12sp")
         root.add_widget(self.lbl_status)
 
-        # لیست نتایج به همراه دکمه Connect روبه‌روی هر آی‌پی
+        # لیست نتایج همراه با دکمه اتصال
         scroll = ScrollView(do_scroll_x=False)
         self.results_layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(3), padding=[0, dp(2)])
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
@@ -271,8 +264,7 @@ class Amir6App(App):
         ranges = ISP_DICT.get(selected_isp_name, ARVAN_IPV4)
         
         raw_config = self.txt_config.text.strip()
-        _, _, sni_domain = parse_vless_config(raw_config)
-        delay_url = self.spin_url.text
+        _, _, sni_domain, path = parse_vless_config(raw_config)
 
         self.q = Queue()
         for _ in range(self.total):
@@ -289,7 +281,7 @@ class Amir6App(App):
                 if not self.running:
                     self.q.task_done()
                     break
-                ms = test_ip(ip, sni_domain, delay_url)
+                ms = test_ip(ip, sni_domain, path)
                 if not self.running:
                     self.q.task_done()
                     break
@@ -323,7 +315,6 @@ class Amir6App(App):
                 row.lbl_rank.text = str(i + 1)
                 row.lbl_ip.text = p
                 row.lbl_ping.text = f"{m:.0f} ms"
-                row.lbl_ping.color = row.get_ping_color(m)
                 row.opacity = 1
                 row.height = dp(46)
             else:
@@ -342,11 +333,10 @@ class Amir6App(App):
         self.progress.value = 100
 
     def connect_with_ip(self, clean_ip):
-        """زمانی که روی دکمه Connect روبه‌روی آی‌پی میزنی، کانفیگ مرده با این آی‌پی جدید زنده میشه"""
+        """زنده کردن کانفیگ مرده با کلیک روی دکمه Connect روبه‌روی هر آی‌پی"""
         raw_config = self.txt_config.text.strip()
-        address, port, sni = parse_vless_config(raw_config)
+        address, port, _, _ = parse_vless_config(raw_config)
         
-        # جایگزینی آی‌پی جدیدِ پیدا شده با آی‌پی قبلی در کانفیگ
         new_config = raw_config.replace(f"{address}:{port}", f"{clean_ip}:{port}")
         Clipboard.copy(new_config)
         
