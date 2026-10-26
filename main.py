@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# AMIR6 - CF IPv Scanner (Updated for Worker/SNI Testing)
+# AMIR6 - CF & Arvan Hybrid IPv Scanner (Fixed Architecture)
 
-import threading, socket, ssl, time, random, ipaddress, os
+import threading, socket, ssl, time, random, ipaddress, os, urllib.parse
 from queue import Queue, Empty
 
 from kivy.app import App
@@ -84,7 +84,29 @@ def rand_ip_from_ranges(ranges):
         return str(net.network_address)
     return str(net.network_address + random.randint(1, n - 2))
 
-def ping_once(ip, sni_domain, timeout=4.0):
+def parse_vless_config(config_str):
+    sni = "cloudflare.com"
+    try:
+        config_str = config_str.strip()
+        if config_str.startswith("vless://"):
+            parts = config_str.split("@")
+            if len(parts) > 1:
+                host_part = parts[1].split("#")[0]
+                if "?" in host_part:
+                    _, query_part = host_part.split("?", 1)
+                elif "/" in host_part:
+                    _, query_part = host_part.split("/", 1)
+                else:
+                    query_part = ""
+                
+                params = urllib.parse.parse_qs(query_part)
+                if "sni" in params:
+                    sni = params["sni"][0]
+    except Exception:
+        pass
+    return sni
+
+def ping_once(ip, sni_domain, timeout=5.0):
     try:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
@@ -97,9 +119,9 @@ def ping_once(ip, sni_domain, timeout=4.0):
         s.settimeout(timeout)
         s.connect(addr)
         
-        # استفاده از SNI ورکر کاربر به جای cloudflare.com ثابت
         target_sni = sni_domain if sni_domain else "cloudflare.com"
         
+        # برقراری هندشیک TLS روی پورت ۴۴۳ با SNI کلادفلر (حتی روی آی‌پی آروان)
         with ctx.wrap_socket(s, server_hostname=target_sni) as tls:
             tls.sendall(
                 f"GET /cdn-cgi/trace HTTP/1.1\r\n"
@@ -107,7 +129,7 @@ def ping_once(ip, sni_domain, timeout=4.0):
                 f"Connection: close\r\n\r\n".encode()
             )
             d = tls.recv(256)
-            if len(d) < 5:
+            if len(d) < 3:
                 return None
         return (time.monotonic() - t0) * 1000
     except Exception:
@@ -196,22 +218,22 @@ class Amir6App(App):
         self.q = None
         self.row_widgets = []
         self.save_data = None
-        self.selected_isp = "Cloudflare"
+        self.selected_isp = "AbrArvan CDN and IaaS"
 
         root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
 
-        header = Label(text="[b][color=00ccff]AMIR6[/color]  CF IPv Scanner[/b]", markup=True,
-                       size_hint_y=None, height=dp(32), font_size="16sp")
+        header = Label(text="[b][color=00ccff]AMIR6[/color]  Hybrid Scanner[/b]", markup=True,
+                       size_hint_y=None, height=dp(30), font_size="16sp")
         root.add_widget(header)
 
-        # SNI / Worker Domain Input Box
-        sni_layout = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
-        sni_layout.add_widget(Label(text="SNI/Worker:", size_hint_x=0.28, color=get_color_from_hex("#00ccff"), font_size="12sp"))
-        self.txt_sni = TextInput(text="long-morning-7443.amirsanaei1313.workers.dev", multiline=False,
-                                 size_hint_x=0.72, font_size="11sp", background_color=get_color_from_hex("#1a1a2e"),
-                                 foreground_color=(1,1,1,1), cursor_color=(0,1,1,1))
-        sni_layout.add_widget(self.txt_sni)
-        root.add_widget(sni_layout)
+        # Config Paste Box
+        config_layout = BoxLayout(orientation="vertical", size_hint_y=None, height=dp(56), spacing=dp(2))
+        config_layout.add_widget(Label(text="Paste VLESS Config (Cloudflare/Worker):", size_hint_y=None, height=dp(16), color=get_color_from_hex("#00ccff"), font_size="10sp"))
+        self.txt_config = TextInput(text="vless://uuid@185.121.201:443?type=ws&security=tls&sni=long-morning-7443.amirsanaei1313.workers.dev#OMID",
+                                    multiline=False, size_hint_y=None, height=dp(36), font_size="10sp",
+                                    background_color=get_color_from_hex("#1a1a2e"), foreground_color=(1,1,1,1))
+        config_layout.add_widget(self.txt_config)
+        root.add_widget(config_layout)
 
         # Count + Threads
         settings1 = BoxLayout(size_hint_y=None, height=dp(38), spacing=dp(6))
@@ -235,9 +257,9 @@ class Amir6App(App):
         settings2.add_widget(self.spin_proto)
 
         settings2.add_widget(Label(text="ISP:", size_hint_x=0.15, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
-        self.btn_isp = Button(text="Cloudflare", size_hint_x=0.35,
+        self.btn_isp = Button(text="AbrArvan CDN and IaaS", size_hint_x=0.35,
                               background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1),
-                              font_size="12sp", shorten=True)
+                              font_size="11sp", shorten=True)
         self.btn_isp.bind(on_press=self.open_isp_popup)
         settings2.add_widget(self.btn_isp)
         root.add_widget(settings2)
@@ -388,7 +410,11 @@ class Amir6App(App):
     def scan_worker(self):
         isp = self.selected_isp
         proto = self.spin_proto.text
-        sni_domain = self.txt_sni.text.strip()
+        
+        # استخراج هوشمند SNI از کانفیگ کلادفلر
+        raw_config = self.txt_config.text.strip()
+        sni_domain = parse_vless_config(raw_config)
+        
         ranges = get_ranges(isp, proto)
 
         if not ranges:
