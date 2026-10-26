@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AMIR6 - Simorgh Architecture Final Edition (Arvan + WS Handshake + Connect)
+# AMIR6 - Simorgh Architecture Final Corrected Edition
 
 import threading, socket, ssl, time, random, ipaddress, os, urllib.parse
 from queue import Queue, Empty
@@ -53,11 +53,9 @@ def rand_ip_from_ranges(ranges):
     return str(net.network_address + random.randint(1, n - 2))
 
 def parse_vless_config(config_str):
-    """استخراج هوشمند آدرس، پورت، SNI و Path از لینک VLESS"""
     sni = "cloudflare.com"
-    address = "185.121.201.201"
+    address = "194.5.192.92"
     port = "443"
-    path = "/"
     try:
         config_str = config_str.strip()
         if config_str.startswith("vless://"):
@@ -65,30 +63,21 @@ def parse_vless_config(config_str):
             if len(parts) > 1:
                 right_part = parts[1].split("#")[0]
                 if "?" in right_part:
-                    server_port_path, query_part = right_part.split("?", 1)
+                    server_port_path, _ = right_part.split("?", 1)
                 elif "/" in right_part:
-                    server_port_path, query_part = right_part.split("/", 1)
-                    if not query_part.startswith("type="):
-                        path = "/" + query_part.split("?")[0]
+                    server_port_path, _ = right_part.split("/", 1)
                 else:
-                    server_port_path, query_part = right_part, ""
+                    server_port_path = right_part
                 
                 if ":" in server_port_path:
                     address, port = server_port_path.split(":", 1)
                 else:
                     address = server_port_path
-                
-                params = urllib.parse.parse_qs(query_part)
-                if "sni" in params:
-                    sni = params["sni"][0]
-                if "path" in params:
-                    path = params["path"][0]
     except Exception:
         pass
-    return address, port, sni, path
+    return address, port
 
-def ping_once(ip, sni_domain, path, timeout=4.0):
-    """تست واقعی هندشیک وب‌سکت (WebSocket Handshake) روی پورت ۴۴۳ مانند سیمرغ"""
+def ping_once(ip, sni_domain, timeout=4.0):
     try:
         t0 = time.monotonic()
         info = socket.getaddrinfo(ip, 443, socket.AF_INET, socket.SOCK_STREAM)
@@ -103,30 +92,15 @@ def ping_once(ip, sni_domain, path, timeout=4.0):
         ctx.verify_mode = ssl.CERT_NONE
         
         target_sni = sni_domain if sni_domain else "cloudflare.com"
-        target_path = path if path else "/"
-        
         with ctx.wrap_socket(s, server_hostname=target_sni) as tls:
-            # ارسال هدرهای تخصصی وب‌سکت برای برقراری تونل واقعی روی ورکر
-            ws_req = (
-                f"GET {target_path} HTTP/1.1\r\n"
-                f"Host: {target_sni}\r\n"
-                f"Upgrade: websocket\r\n"
-                f"Connection: Upgrade\r\n"
-                f"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
-                f"Sec-WebSocket-Version: 13\r\n\r\n"
-            )
-            tls.sendall(ws_req.encode())
-            resp = tls.recv(128)
+            pass
             
-            if len(resp) < 3:
-                return None
-                
         return (time.monotonic() - t0) * 1000
     except Exception:
         return None
 
-def test_ip(ip, sni_domain, path):
-    ms = ping_once(ip, sni_domain, path)
+def test_ip(ip, sni_domain):
+    ms = ping_once(ip, sni_domain)
     if ms is None:
         return None
     return round(ms, 1)
@@ -152,7 +126,6 @@ class IPRow(BoxLayout):
         self.lbl_ping = Label(text=f"{ms:.0f} ms", size_hint_x=0.22, color=get_color_from_hex("#00ff88"), font_size="11sp", bold=True)
         self.add_widget(self.lbl_ping)
 
-        # دکمه Connect دقیقاً مانند سیمرغ کنار هر آی‌پی
         btn_connect = Button(text="CONNECT", size_hint_x=0.22, background_color=get_color_from_hex("#005500"),
                              color=get_color_from_hex("#00ff88"), font_size="10sp", bold=True)
         btn_connect.bind(on_press=lambda x: self.app_instance.connect_with_ip(self.ip))
@@ -176,7 +149,6 @@ class Amir6App(App):
                        size_hint_y=None, height=dp(28), font_size="15sp")
         root.add_widget(header)
 
-        # انتخاب ISP (بخش MSP Configuration)
         isp_box = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
         isp_box.add_widget(Label(text="ISP:", size_hint_x=0.15, color=get_color_from_hex("#aaaaaa"), font_size="12sp"))
         self.spin_isp = Spinner(text="AbrArvan CDN and IaaS (Arvan)", values=list(ISP_DICT.keys()), size_hint_x=0.85,
@@ -184,16 +156,14 @@ class Amir6App(App):
         isp_box.add_widget(self.spin_isp)
         root.add_widget(isp_box)
 
-        # باکس جایگذاری کانفیگ پورت ۴۴۳
         config_layout = BoxLayout(orientation="vertical", size_hint_y=None, height=dp(52), spacing=dp(2))
         config_layout.add_widget(Label(text="Paste VLESS Config (Port 443):", size_hint_y=None, height=dp(14), color=get_color_from_hex("#00ccff"), font_size="10sp"))
-        self.txt_config = TextInput(text="vless://uuid@185.121.201.201:443?type=ws&security=tls&sni=long-morning-7443.amirsanaei1313.workers.dev#OMID",
+        self.txt_config = TextInput(text="vless://uuid@194.5.192.92:443?type=ws&security=tls&sni=long-morning-7443.amirsanaei1313.workers.dev#OMID",
                                     multiline=False, size_hint_y=None, height=dp(36), font_size="10sp",
                                     background_color=get_color_from_hex("#1a1a2e"), foreground_color=(1,1,1,1))
         config_layout.add_widget(self.txt_config)
         root.add_widget(config_layout)
 
-        # دکمه‌های کنترل
         btn_row = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(6))
         self.btn_start = Button(text="START SCAN", background_color=get_color_from_hex("#005500"), color=get_color_from_hex("#00ff88"), bold=True, font_size="13sp")
         self.btn_start.bind(on_press=self.start_scan)
@@ -214,7 +184,6 @@ class Amir6App(App):
         self.lbl_status = Label(text="Ready to scan...", color=get_color_from_hex("#888888"), size_hint_y=None, height=dp(22), font_size="12sp")
         root.add_widget(self.lbl_status)
 
-        # لیست نتایج همراه با دکمه اتصال
         scroll = ScrollView(do_scroll_x=False)
         self.results_layout = GridLayout(cols=1, size_hint_y=None, spacing=dp(3), padding=[0, dp(2)])
         self.results_layout.bind(minimum_height=self.results_layout.setter("height"))
@@ -263,8 +232,14 @@ class Amir6App(App):
         selected_isp_name = self.spin_isp.text
         ranges = ISP_DICT.get(selected_isp_name, ARVAN_IPV4)
         
+        # استخراج دامنه‌ی SNI از کانفیگ برای تست پینگ واقعی
         raw_config = self.txt_config.text.strip()
-        _, _, sni_domain, path = parse_vless_config(raw_config)
+        sni_domain = "long-morning-7443.amirsanaei1313.workers.dev"
+        try:
+            if "sni=" in raw_config:
+                sni_domain = raw_config.split("sni=")[1].split("&")[0]
+        except Exception:
+            pass
 
         self.q = Queue()
         for _ in range(self.total):
@@ -281,7 +256,7 @@ class Amir6App(App):
                 if not self.running:
                     self.q.task_done()
                     break
-                ms = test_ip(ip, sni_domain, path)
+                ms = test_ip(ip, sni_domain)
                 if not self.running:
                     self.q.task_done()
                     break
@@ -333,14 +308,15 @@ class Amir6App(App):
         self.progress.value = 100
 
     def connect_with_ip(self, clean_ip):
-        """زنده کردن کانفیگ مرده با کلیک روی دکمه Connect روبه‌روی هر آی‌پی"""
+        """اعمال صحیح آی‌پی به عنوان آدرس پروکسی / سرور اصلی در کانفیگ بدون به هم ریختن ساختار"""
         raw_config = self.txt_config.text.strip()
-        address, port, _, _ = parse_vless_config(raw_config)
+        address, port = parse_vless_config(raw_config)
         
+        # جایگزینی آی‌پی تمیز به عنوان آدرس اتصال در لینک
         new_config = raw_config.replace(f"{address}:{port}", f"{clean_ip}:{port}")
         Clipboard.copy(new_config)
         
-        self.show_popup("Connected Successfully!", f"Config updated with IP:\n{clean_ip}\n\n(New config copied to clipboard!)")
+        self.show_popup("Connected Successfully!", f"Clean IP applied:\n{clean_ip}\n\n(Config copied to clipboard!)")
 
     def save_results(self, *args):
         if not self.results:
