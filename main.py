@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AMIR6 - CF IPv Scanner
+# AMIR6 - CF IPv Scanner (Updated for Worker/SNI Testing)
 
 import threading, socket, ssl, time, random, ipaddress, os
 from queue import Queue, Empty
@@ -44,20 +44,11 @@ CF_IPV4 = [
     "188.114.96.0/20", "197.234.240.0/22",
 ]
 
-# رنج‌های به‌روز شده آروان
 ARVAN_IPV4 = [
-    "91.216.13.0/24",
-    "130.185.120.0/22",
-    "185.204.168.0/22",
-    "185.235.40.0/22",
-    "193.24.119.0/24",
-    "194.5.192.0/23",
-    "194.5.206.0/23",
-    "185.215.232.0/22",
-    "37.32.3.0/24",
-    "185.143.232.0/22",
-    "185.220.226.0/24",
-    "193.176.240.0/24",
+    "91.216.13.0/24", "130.185.120.0/22", "185.204.168.0/22",
+    "185.235.40.0/22", "193.24.119.0/24", "194.5.192.0/23",
+    "194.5.206.0/23", "185.215.232.0/22", "37.32.3.0/24",
+    "185.143.232.0/22", "185.220.226.0/24", "193.176.240.0/24",
 ]
 
 ISP_LIST = [
@@ -80,7 +71,6 @@ def get_ranges(isp_name, protocol):
         if protocol in ("IPv4", "Both"):
             ranges.extend(CF_IPV4)
     else:
-        # همه آروان‌ها از لیست مشترک استفاده می‌کنن
         if protocol in ("IPv4", "Both"):
             ranges.extend(ARVAN_IPV4)
     return ranges
@@ -94,7 +84,7 @@ def rand_ip_from_ranges(ranges):
         return str(net.network_address)
     return str(net.network_address + random.randint(1, n - 2))
 
-def ping_once(ip, timeout=4.0):
+def ping_once(ip, sni_domain, timeout=4.0):
     try:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
@@ -106,23 +96,27 @@ def ping_once(ip, timeout=4.0):
         s = socket.socket(af, st, pr)
         s.settimeout(timeout)
         s.connect(addr)
-        with ctx.wrap_socket(s, server_hostname="cloudflare.com") as tls:
+        
+        # استفاده از SNI ورکر کاربر به جای cloudflare.com ثابت
+        target_sni = sni_domain if sni_domain else "cloudflare.com"
+        
+        with ctx.wrap_socket(s, server_hostname=target_sni) as tls:
             tls.sendall(
-                b"GET /cdn-cgi/trace HTTP/1.1\r\n"
-                b"Host: cloudflare.com\r\n"
-                b"Connection: close\r\n\r\n"
+                f"GET /cdn-cgi/trace HTTP/1.1\r\n"
+                f"Host: {target_sni}\r\n"
+                f"Connection: close\r\n\r\n".encode()
             )
             d = tls.recv(256)
-            if len(d) < 10:
+            if len(d) < 5:
                 return None
         return (time.monotonic() - t0) * 1000
     except Exception:
         return None
 
-def test_ip(ip, pcount=2):
+def test_ip(ip, sni_domain, pcount=2):
     pings = []
     for _ in range(pcount):
-        ms = ping_once(ip)
+        ms = ping_once(ip, sni_domain)
         if ms is None:
             return None
         pings.append(ms)
@@ -207,11 +201,20 @@ class Amir6App(App):
         root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
 
         header = Label(text="[b][color=00ccff]AMIR6[/color]  CF IPv Scanner[/b]", markup=True,
-                       size_hint_y=None, height=dp(36), font_size="16sp")
+                       size_hint_y=None, height=dp(32), font_size="16sp")
         root.add_widget(header)
 
+        # SNI / Worker Domain Input Box
+        sni_layout = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
+        sni_layout.add_widget(Label(text="SNI/Worker:", size_hint_x=0.28, color=get_color_from_hex("#00ccff"), font_size="12sp"))
+        self.txt_sni = TextInput(text="long-morning-7443.amirsanaei1313.workers.dev", multiline=False,
+                                 size_hint_x=0.72, font_size="11sp", background_color=get_color_from_hex("#1a1a2e"),
+                                 foreground_color=(1,1,1,1), cursor_color=(0,1,1,1))
+        sni_layout.add_widget(self.txt_sni)
+        root.add_widget(sni_layout)
+
         # Count + Threads
-        settings1 = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(6))
+        settings1 = BoxLayout(size_hint_y=None, height=dp(38), spacing=dp(6))
         settings1.add_widget(Label(text="Count:", size_hint_x=0.22, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
         self.spin_count = Spinner(text="1000", values=["500","1000","2000","3000","Custom"], size_hint_x=0.28,
                                   background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1), font_size="14sp")
@@ -225,7 +228,7 @@ class Amir6App(App):
         root.add_widget(settings1)
 
         # Type + ISP
-        settings2 = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(6))
+        settings2 = BoxLayout(size_hint_y=None, height=dp(38), spacing=dp(6))
         settings2.add_widget(Label(text="Type:", size_hint_x=0.22, color=get_color_from_hex("#aaaaaa"), font_size="13sp"))
         self.spin_proto = Spinner(text="IPv4", values=["IPv4", "IPv6", "Both"], size_hint_x=0.28,
                                   background_color=get_color_from_hex("#1a1a2e"), color=(1,1,1,1), font_size="14sp")
@@ -240,7 +243,7 @@ class Amir6App(App):
         root.add_widget(settings2)
 
         # Buttons
-        btn_row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6))
+        btn_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
         self.btn_start = Button(text="START", background_color=get_color_from_hex("#005500"),
                                 color=get_color_from_hex("#00ff88"), bold=True, font_size="14sp")
         self.btn_start.bind(on_press=self.start_scan)
@@ -262,16 +265,16 @@ class Amir6App(App):
         btn_row.add_widget(self.btn_clear)
         root.add_widget(btn_row)
 
-        self.progress = ProgressBar(max=100, value=0, size_hint_y=None, height=dp(10))
+        self.progress = ProgressBar(max=100, value=0, size_hint_y=None, height=dp(8))
         root.add_widget(self.progress)
 
         self.lbl_status = Label(text="Ready", color=get_color_from_hex("#888888"),
-                                size_hint_y=None, height=dp(26), font_size="13sp")
+                                size_hint_y=None, height=dp(24), font_size="13sp")
         root.add_widget(self.lbl_status)
 
         root.add_widget(Label(
             text="[color=00ff88]<450ms[/color]    [color=ffcc00]<650ms[/color]    [color=ff4444]>650ms[/color]    (tap IP or COPY)",
-            markup=True, size_hint_y=None, height=dp(22), font_size="11sp"
+            markup=True, size_hint_y=None, height=dp(20), font_size="11sp"
         ))
 
         scroll = ScrollView(do_scroll_x=False)
@@ -287,7 +290,7 @@ class Amir6App(App):
         root.add_widget(scroll)
 
         self.lbl_best = Label(text="Best: —", color=get_color_from_hex("#00ff88"),
-                              size_hint_y=None, height=dp(28), font_size="12sp", markup=True)
+                              size_hint_y=None, height=dp(26), font_size="12sp", markup=True)
         root.add_widget(self.lbl_best)
 
         Clock.schedule_interval(self.flush_rows, 0.5)
@@ -385,6 +388,7 @@ class Amir6App(App):
     def scan_worker(self):
         isp = self.selected_isp
         proto = self.spin_proto.text
+        sni_domain = self.txt_sni.text.strip()
         ranges = get_ranges(isp, proto)
 
         if not ranges:
@@ -411,7 +415,7 @@ class Amir6App(App):
                 if not self.running:
                     self.q.task_done()
                     break
-                ms = test_ip(ip)
+                ms = test_ip(ip, sni_domain)
                 if not self.running:
                     self.q.task_done()
                     break
